@@ -8,7 +8,8 @@ TorchFly.egg-info/top_level.txt
 torchfly/__init__.py
 torchfly/version.py
 torchfly/criterions/__init__.py
-torchfly/criterions/sequence_loss.py
+torchfly/criterions/sequence_cross_entropy_loss.py
+torchfly/criterions/sequence_focal_loss.py
 torchfly/data/__init__.py
 torchfly/text/__init__.py
 torchfly/utils/__init__.py

@@ -1,1 +1,2 @@
-from .sequence_loss import sequence_cross_entropy_with_logits
+from .sequence_cross_entropy_loss import sequence_cross_entropy_with_logits
+from .sequence_focal_loss import 
