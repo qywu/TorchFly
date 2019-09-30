@@ -1,0 +1,13 @@
+# log files
+*.log
+# pickle and torch files
+*.pth
+*.th
+*.pkl
+# c++ compiles
+*.o
+*.so
+# misc
+__pycache__
+*.egg-info
+.ipynb_checkpoints
