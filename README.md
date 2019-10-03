@@ -4,7 +4,7 @@ TorchFly is a PyTorch Fast Development Kit. The purpose is to learn the pipeline
 
 ## Installation
 
-### Installing via pip:
+### Installing via pip: (Not supported for now)
 Installing is simple using `pip`.
 
    ```bash
@@ -15,6 +15,8 @@ Installing is simple using `pip`.
 You can clone the repository.
     ```bash
     git clone https://github.com/qywu/TorchFly.git
+    cd torchfly
+    pip install -e .
     ```
 
 ### Docker
