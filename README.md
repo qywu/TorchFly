@@ -4,6 +4,8 @@ TorchFly is a PyTorch Fast Development Kit. The purpose is to learn the pipeline
 
 ## Installation
 
+You would need [apex](https://github.com/NVIDIA/apex)
+
 ### Installing via pip: (Not supported for now)
 Installing is simple using `pip`.
 
