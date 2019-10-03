@@ -14,8 +14,11 @@ Installing is simple using `pip`.
 ### Installing from source
 You can clone the repository.
     ```bash
+    
     git clone https://github.com/qywu/TorchFly.git
+    
     cd torchfly
+    
     pip install -e .
     ```
 
