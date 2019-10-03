@@ -1,4 +1,3 @@
-# a list of requirements
-cupy
-pytorch-pretrained-bert
-allennlp
+transformers
+# google drive download
+gdown

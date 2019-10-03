@@ -9,8 +9,9 @@ from functools import lru_cache
 logger = logging.getLogger(__name__)
 
 class BaseTokenizer(ABC):
-    def __init__(self, max_len=1024):
+    def __init__(self, max_len=1024, special_tokens=None):
         self.max_len = max_len
+        self.special_tokens = special_tokens
 
     @abstractproperty
     def vocab_size(self):
@@ -38,7 +39,20 @@ class BaseTokenizer(ABC):
         return self.vocab_size
 
     def tokenize(self, text):
-        return self._tokenize(text)
+        if self.special_tokens is None:
+            return self._tokenize(text)
+        else:
+            # sepcial tokens are assumed registered
+            pattern = '(' + "|".join(self.special_tokens) + ')'
+            raw_tokens = re.split(pattern, text)
+            processed_tokens = []
+            for raw_token in raw_tokens:
+                if len(raw_token) > 0:
+                    if raw_token in self.special_tokens:
+                        processed_tokens.append(raw_token)
+                    else:
+                        processed_tokens.extend(self._tokenize(raw_token))
+            return processed_tokens
 
     def encode(self, text):
         tokens = self.tokenize(text)
