@@ -6,7 +6,17 @@ import torch.nn.functional as F
 from typing import Any
 # pylint:disable=no-member
 
-# @torch.jit.script
+class SequenceCrossEntropyLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, logits, targets, mask, label_smoothing=-1, reduce=None):
+        """
+        reduce: None, "batch", "sentence"
+        """
+        return sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, reduce)
+
+
 def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, reduce):
     # type: (Tensor, Tensor, Tensor, float, bool)-> Tensor
     """
@@ -20,7 +30,7 @@ def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, r
     # shape : (batch * max_len, 1)
     targets_flat = targets.view(-1, 1).long()
 
-    if bool(label_smoothing > 0.0):
+    if label_smoothing > 0.0:
         num_classes = logits.size(-1)
         smoothing_value = label_smoothing / float(num_classes)
         # Fill all the correct indices with 1 - smoothing value.
@@ -36,12 +46,14 @@ def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, r
     negative_log_likelihood = negative_log_likelihood_flat.view(-1, logits.shape[1])
     
     # shape : (batch, sequence_length)
-    negative_log_likelihood = negative_log_likelihood * mask
-    
-    # shape : (batch_size,)
-    per_batch_loss = negative_log_likelihood.sum(1) / (mask.sum(1) + 1e-13)
+    loss = negative_log_likelihood * mask
 
-    if bool(reduce):
-        per_batch_loss = per_batch_loss.mean()
+    if reduce:
+        # shape : (batch,)
+        loss = loss.sum(1) / (mask.sum(1) + 1e-13)
+        
+        if reduce is "batch":
+            # shape : scalar
+            loss = loss.mean()
 
-    return per_batch_loss
+    return loss
