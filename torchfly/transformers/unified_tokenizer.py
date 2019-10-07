@@ -8,7 +8,6 @@ from functools import lru_cache
 from ..utils.file_utils import http_get
 from .base_tokenizer import BaseTokenizer
 
-
 logger = logging.getLogger(__name__)
 
 VOCAB_FILES_NAMES = {
@@ -17,6 +16,7 @@ VOCAB_FILES_NAMES = {
 }
 
 CACHE_DIR = ".cache"
+
 
 @lru_cache()
 def bytes_to_unicode():
@@ -32,13 +32,18 @@ def bytes_to_unicode():
     """
     # we only support python 3
     _chr = chr
-    bs = list(range(ord("!"), ord("~")+1))+list(range(ord("¡"), ord("¬")+1))+list(range(ord("®"), ord("ÿ")+1))
+    bs = list(range(ord("!"),
+                    ord("~") + 1)) + list(
+                        range(ord("¡"),
+                              ord("¬") + 1)
+                    ) + list(range(ord("®"),
+                                   ord("ÿ") + 1))
     cs = bs[:]
     n = 0
     for b in range(2**8):
         if b not in bs:
             bs.append(b)
-            cs.append(2**8+n)
+            cs.append(2**8 + n)
             n += 1
     cs = [_chr(n) for n in cs]
     return dict(zip(bs, cs))
@@ -65,10 +70,13 @@ class UnifiedTokenizer(BaseTokenizer):
           Otherwise, this tokenizer ``encode`` and ``decode`` method will not conserve
           the absence of a space at the beginning of a string: `tokenizer.decode(tokenizer.encode("Hello")) = " Hello"`
     """
+
     #TODO: write a C++ version to speed up?
 
     def __init__(self, vocab_file=None, merges_file=None, errors='replace'):
-        super(UnifiedTokenizer, self).__init__(max_len=512, special_tokens=["<s>", "<pad>", "</s>", "<unk>"])
+        super(UnifiedTokenizer, self).__init__(
+            max_len=512, special_tokens=["<s>", "<pad>", "</s>", "<unk>"]
+        )
 
         if vocab_file is None or merges_file is None:
             vocab_file, merges_file = self.load_from_cache()
@@ -79,7 +87,7 @@ class UnifiedTokenizer(BaseTokenizer):
         self.errors = errors  # how to handle errors in decoding
         self.byte_encoder = bytes_to_unicode()
         self.byte_decoder = {v: k for k, v in self.byte_encoder.items()}
-        
+
         with open(merges_file, encoding='utf-8') as f:
             bpe_data = f.read().split('\n')[1:-1]
             bpe_merges = [tuple(merge.split()) for merge in bpe_data]
@@ -88,24 +96,47 @@ class UnifiedTokenizer(BaseTokenizer):
         self.cache = {}
 
         # Should haved added re.IGNORECASE so BPE merges can happen for capitalized versions of contractions
-        self.pat = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+        self.pat = re.compile(
+            r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        )
 
     def load_from_cache(self):
-        vocab_path = os.path.join(os.getenv("HOME"), ".cache", "torchfly", "tokenizer", "roberta-vocab.json")
-        merges_path = os.path.join(os.getenv("HOME"), ".cache", "torchfly", "tokenizer", "roberta-merges.txt")
+        vocab_path = os.path.join(
+            os.getenv("HOME"), ".cache", "torchfly", "tokenizers",
+            "roberta-vocab.json"
+        )
+        merges_path = os.path.join(
+            os.getenv("HOME"), ".cache", "torchfly", "tokenizers",
+            "roberta-merges.txt"
+        )
 
         if not os.path.exists(vocab_path):
             # create the folder
             logger.warning("Downloading roberta-vocab.json")
-            os.makedirs(os.path.join(os.getenv("HOME"), ".cache", "torchfly", "tokenizer"), exist_ok=True)
-            http_get("https://s3.amazonaws.com/models.huggingface.co/bert/roberta-base-vocab.json", vocab_path)
-            
+            os.makedirs(
+                os.path.join(
+                    os.getenv("HOME"), ".cache", "torchfly", "tokenizers"
+                ),
+                exist_ok=True
+            )
+            http_get(
+                "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-base-vocab.json",
+                vocab_path
+            )
 
         if not os.path.exists(merges_path):
             # create the folder
             logger.warning("Downloading roberta-merges.json")
-            os.makedirs(os.path.join(os.getenv("HOME"), ".cache", "torchfly", "tokenizer"), exist_ok=True)
-            http_get("https://s3.amazonaws.com/models.huggingface.co/bert/roberta-base-merges.txt", merges_path)
+            os.makedirs(
+                os.path.join(
+                    os.getenv("HOME"), ".cache", "torchfly", "tokenizers"
+                ),
+                exist_ok=True
+            )
+            http_get(
+                "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-base-merges.txt",
+                merges_path
+            )
 
         return vocab_path, merges_path
 
@@ -123,7 +154,9 @@ class UnifiedTokenizer(BaseTokenizer):
             return token
 
         while True:
-            bigram = min(pairs, key = lambda pair: self.bpe_ranks.get(pair, float('inf')))
+            bigram = min(
+                pairs, key=lambda pair: self.bpe_ranks.get(pair, float('inf'))
+            )
             if bigram not in self.bpe_ranks:
                 break
             first, second = bigram
@@ -138,8 +171,9 @@ class UnifiedTokenizer(BaseTokenizer):
                     new_word.extend(word[i:])
                     break
 
-                if word[i] == first and i < len(word)-1 and word[i+1] == second:
-                    new_word.append(first+second)
+                if word[i] == first and i < len(word) - 1 and word[i +
+                                                                   1] == second:
+                    new_word.append(first + second)
                     i += 2
                 else:
                     new_word.append(word[i])
@@ -166,10 +200,16 @@ class UnifiedTokenizer(BaseTokenizer):
         bpe_tokens = []
         for token in re.findall(self.pat, text):
             if sys.version_info[0] == 2:
-                token = ''.join(self.byte_encoder[ord(b)] for b in token) # Maps all our bytes to unicode strings, avoiding controle tokens of the BPE (spaces in our case)
+                token = ''.join(
+                    self.byte_encoder[ord(b)] for b in token
+                )  # Maps all our bytes to unicode strings, avoiding controle tokens of the BPE (spaces in our case)
             else:
-                token = ''.join(self.byte_encoder[b] for b in token.encode('utf-8')) # Maps all our bytes to unicode strings, avoiding controle tokens of the BPE (spaces in our case)
-            bpe_tokens.extend(bpe_token for bpe_token in self.bpe(token).split(' '))
+                token = ''.join(
+                    self.byte_encoder[b] for b in token.encode('utf-8')
+                )  # Maps all our bytes to unicode strings, avoiding controle tokens of the BPE (spaces in our case)
+            bpe_tokens.extend(
+                bpe_token for bpe_token in self.bpe(token).split(' ')
+            )
         return bpe_tokens
 
     def _convert_token_to_id(self, token):
@@ -184,5 +224,6 @@ class UnifiedTokenizer(BaseTokenizer):
     def convert_tokens_to_string(self, tokens):
         """ Converts a sequence of tokens (string) in a single string. """
         text = ''.join(tokens)
-        text = bytearray([self.byte_decoder[c] for c in text]).decode('utf-8', errors=self.errors)
+        text = bytearray([self.byte_decoder[c]
+                          for c in text]).decode('utf-8', errors=self.errors)
         return text
