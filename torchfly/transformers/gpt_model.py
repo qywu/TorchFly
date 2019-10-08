@@ -3,20 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint
 import math
-from ..utils.file_utils import gdrive_download
 
+from ..utils.file_utils import gdrive_download
+# from ..cuda import gpt_gelu as gelu
 # assert installed
 from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
 # from cudatest import GPT_GELU
 
 # pylint:disable=no-member
 
-
-# def gelu(x):
-#     """ GELU Activation Function
-#         math.sqrt(2 / math.pi) = 0.7978845608028654
-#     """
-#     return 0.5 * x * (1 + torch.tanh(0.7978845608028654 * (x + 0.044715 * torch.pow(x, 3))))
 @torch.jit.script
 def gelu(x):
     """ GELU Activation Function
