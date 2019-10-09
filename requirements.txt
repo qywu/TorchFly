@@ -1,3 +1,4 @@
+allennlp
 regex
 transformers
 # google drive download
