@@ -4,9 +4,9 @@ TorchFly is a PyTorch Fast Development Kit. The purpose is to learn the pipeline
 
 ## Installation
 
-You would need [apex](https://github.com/NVIDIA/apex), but it requires some tiny modifications if you are using CUDA 10.1.
+You would need [apex](https://github.com/qywu/apex), but it requires some tiny modifications if you are using CUDA 10.1.
 ```
-git clone https://github.com/NVIDIA/apex
+git clone https://github.com/qywu/apex
 cd apex
 pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
