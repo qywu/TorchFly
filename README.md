@@ -26,7 +26,7 @@ Installing is simple using `pip`.
 You can clone the repository.
 ```
 git clone https://github.com/qywu/TorchFly.git
-cd torchfly
+cd TorchFly
 pip install -e .
 ```
 
