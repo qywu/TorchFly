@@ -28,6 +28,7 @@ You can clone the repository.
 git clone https://github.com/qywu/TorchFly.git
 cd TorchFly
 pip install -e .
+pip install -r requirements.txt
 ```
 
 
