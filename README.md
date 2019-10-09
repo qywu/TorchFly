@@ -17,9 +17,10 @@ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cud
 ### Installing via pip: (Not supported for now)
 Installing is simple using `pip`.
 
-   ```bash
-   pip install torchfly
-   ```
+```
+pip install torchfly
+```
+
 -->
    
 ### Installing from source
