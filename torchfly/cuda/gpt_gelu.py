@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.cpp_extension import load
 
 _path = os.path.join(
-    os.path.abspath(os.path.dirname(__file__)), "cuda/csrc/gpt_gelu_cuda.cu"
+    os.path.abspath(os.path.dirname(__file__)), "csrc/gpt_gelu_cuda.cu"
 )
 
 # JIT compiler
