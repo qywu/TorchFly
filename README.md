@@ -4,27 +4,36 @@ TorchFly is a PyTorch Fast Development Kit. The purpose is to learn the pipeline
 
 ## Installation
 
-You would need [apex](https://github.com/NVIDIA/apex)
+You would need [apex](https://github.com/qywu/apex), but it requires some tiny modifications if you are using CUDA 10.1.
+```
+git clone https://github.com/qywu/apex
+cd apex
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+```
 
+
+
+<!-- has bug
 ### Installing via pip: (Not supported for now)
 Installing is simple using `pip`.
 
-   ```bash
-   pip install torchfly
-   ```
+```
+pip install torchfly
+```
+
+-->
    
 ### Installing from source
 You can clone the repository.
-    ```bash
-    
-    git clone https://github.com/qywu/TorchFly.git
-    
-    cd torchfly
-    
-    pip install -e .
-    ```
+```
+git clone https://github.com/qywu/TorchFly.git
+cd TorchFly
+pip install -e .
+pip install -r requirements.txt
+```
 
- 
+
+
 ## TODOS
  
 1. Custom Bucket Sampler
