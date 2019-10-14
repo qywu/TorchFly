@@ -2,8 +2,6 @@ import logging
 import random
 import numpy as np
 import torch
-# allennlp
-from allennlp.common.checks import log_pytorch_version_info
 
 logger = logging.getLogger(__name__)
 
@@ -24,5 +22,3 @@ def set_random_seed(seed: int):
     # Seed all GPUs with the same seed if available.
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-    log_pytorch_version_info()

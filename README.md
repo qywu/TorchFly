@@ -24,27 +24,22 @@ You can clone the repository.
     pip install -e .
     ```
 
-### Docker
-It is recommended to run on Nvidia Docker for better performance.
-
-    ```bash
-    FROM nvcr.io/nvidia/pytorch:18.12.1-py3
-    RUN apt-get update
-    
-    RUN pip install torchfly
-    ```
  
- ## TODOS
+## TODOS
  
 1. Custom Bucket Sampler
 
 2. Custom Beam Search
 
+
+[] Remove [Allennlp]() and [transformers]() dependencies
+[] Warum up Scheduler
  
- ## Code References
+
+## Code References
  
- [FastAI](https://github.com/fastai)
+[FastAI](https://github.com/fastai)
  
- [AllenNLP](https://github.com/allenai/allennlp/)
+[AllenNLP](https://github.com/allenai/allennlp/)
  
- [Pytorch BERT](https://github.com/huggingface/pytorch-pretrained-BERT)
+[Pytorch BERT](https://github.com/huggingface/pytorch-pretrained-BERT)
