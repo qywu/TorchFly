@@ -75,7 +75,7 @@ class UnifiedTokenizer(BaseTokenizer):
 
     def __init__(self, vocab_file=None, merges_file=None, errors='replace'):
         super(UnifiedTokenizer, self).__init__(
-            max_len=512, special_tokens=["<s>", "<pad>", "</s>", "<unk>"]
+            max_len=512, special_tokens=["<s>", "<pad>", "</s>", "<unk>", "<mask>", "<madeupword0000>", "<madeupword0001>", "<madeupword0002>"]
         )
 
         if vocab_file is None or merges_file is None:
@@ -214,8 +214,8 @@ class UnifiedTokenizer(BaseTokenizer):
 
     def _convert_token_to_id(self, token):
         """ Converts a token (str/unicode) in an id using the vocab. """
-        # if not found return 50256
-        return self.encoder.get(token, 50256)
+        # if not found return <unk>, 3
+        return self.encoder.get(token, 3)
 
     def _convert_id_to_token(self, index):
         """Converts an index (integer) in a token (string/unicode) using the vocab."""
