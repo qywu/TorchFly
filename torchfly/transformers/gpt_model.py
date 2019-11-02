@@ -12,6 +12,7 @@ from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
 
 # pylint:disable=no-member
 
+
 @torch.jit.script
 def gelu(x):
     """ GELU Activation Function
@@ -20,6 +21,7 @@ def gelu(x):
     return 0.5 * x * (
         1 + torch.tanh(0.7978845608028654 * (x + 0.044715 * torch.pow(x, 3)))
     )
+
 
 class Conv1D(nn.Module):
     def __init__(self, nf, nx):
@@ -197,15 +199,12 @@ class GPT2Model(nn.Module):
 
         self.apply(self.init_weights)
 
-    @classmethod
-    def from_pretrained(cls, modelname):
+    def load_pretrained(self, modelname):
         if modelname == "unified-gpt2-small":
-            model = cls(GPT2SmallConfig)
             url = "https://drive.google.com/uc?id=1C5uuC2RNMwIjLC5UInmoEVXbX-U1OEvF"
             filepath = gdrive_download(url, "models", "unified-gpt2-small.pth")
             states_dict = torch.load(filepath)
-            model.load_state_dict(states_dict, strict=False)
-            return model
+            return states_dict
 
     def init_weights(self, module):
         """ Initialize the weights.
