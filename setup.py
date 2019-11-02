@@ -13,6 +13,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/qywu/TorchFly",
     packages=find_packages(),
+    install_requires=['gdown'],
     classifiers=[
         'Programming Language :: Python :: 3',
         "License :: OSI Approved :: MIT License",
