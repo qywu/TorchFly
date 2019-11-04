@@ -66,6 +66,10 @@ class TeeLogger:
 
 
 def init_logging(debug=False):
+    # need to reload the old logging
+    from imp import reload
+    reload(logging)
+
     if debug:
         LEVEL = logging.DEBUG
     else:

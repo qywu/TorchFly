@@ -278,16 +278,6 @@ class GPT2SimpleLM(nn.Module):
         self.lm_head = GPT2LMHead(self.transformer.wte.weight, config)
         self.apply(self.init_weights)
 
-    @classmethod
-    def from_pretrained(cls, modelname):
-        if modelname == "unified-gpt2-small":
-            model = cls(GPT2SmallConfig)
-            url = "https://drive.google.com/uc?id=1C5uuC2RNMwIjLC5UInmoEVXbX-U1OEvF"
-            filepath = gdrive_download(url, "models", "unified-gpt2-small.pth")
-            states_dict = torch.load(filepath)
-            model.load_state_dict(states_dict)
-            return model
-
     def init_weights(self, module):
         """ Initialize the weights.
         """
