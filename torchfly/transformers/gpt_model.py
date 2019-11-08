@@ -12,6 +12,7 @@ from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
 
 # pylint:disable=no-member
 
+
 @torch.jit.script
 def gelu(x):
     """ GELU Activation Function
@@ -20,30 +21,6 @@ def gelu(x):
     return 0.5 * x * (
         1 + torch.tanh(0.7978845608028654 * (x + 0.044715 * torch.pow(x, 3)))
     )
-
-
-def prune_conv1d_layer(layer, index, dim=1):
-    """ Prune a Conv1D layer (a model parameters) to keep only entries in index.
-        A Conv1D work as a Linear layer (see e.g. BERT) but the weights are transposed.
-        Return the pruned layer as a new layer with requires_grad=True.
-        Used to remove heads.
-    """
-    index = index.to(layer.weight.device)
-    W = layer.weight.index_select(dim, index).clone().detach()
-    if dim == 0:
-        b = layer.bias.clone().detach()
-    else:
-        b = layer.bias[index].clone().detach()
-    new_size = list(layer.weight.size())
-    new_size[dim] = len(index)
-    new_layer = Conv1D(new_size[1], new_size[0]).to(layer.weight.device)
-    new_layer.weight.requires_grad = False
-    new_layer.weight.copy_(W.contiguous())
-    new_layer.weight.requires_grad = True
-    new_layer.bias.requires_grad = False
-    new_layer.bias.copy_(b.contiguous())
-    new_layer.bias.requires_grad = True
-    return new_layer
 
 
 class Conv1D(nn.Module):
@@ -222,15 +199,12 @@ class GPT2Model(nn.Module):
 
         self.apply(self.init_weights)
 
-    @classmethod
-    def from_pretrained(cls, modelname):
+    def load_pretrained(self, modelname):
         if modelname == "unified-gpt2-small":
-            model = cls(GPT2SmallConfig)
             url = "https://drive.google.com/uc?id=1C5uuC2RNMwIjLC5UInmoEVXbX-U1OEvF"
             filepath = gdrive_download(url, "models", "unified-gpt2-small.pth")
             states_dict = torch.load(filepath)
-            model.load_state_dict(states_dict, strict=False)
-            return model
+            return states_dict
 
     def init_weights(self, module):
         """ Initialize the weights.
@@ -304,16 +278,6 @@ class GPT2SimpleLM(nn.Module):
         self.lm_head = GPT2LMHead(self.transformer.wte.weight, config)
         self.apply(self.init_weights)
 
-    @classmethod
-    def from_pretrained(cls, modelname):
-        if modelname == "unified-gpt2-small":
-            model = cls(GPT2SmallConfig)
-            url = "https://drive.google.com/uc?id=1C5uuC2RNMwIjLC5UInmoEVXbX-U1OEvF"
-            filepath = gdrive_download(url, "models", "unified-gpt2-small.pth")
-            states_dict = torch.load(filepath)
-            model.load_state_dict(states_dict)
-            return model
-
     def init_weights(self, module):
         """ Initialize the weights.
         """
@@ -375,9 +339,9 @@ class GPT2SmallConfig:
     n_embd = 768
     n_layer = 12
     n_head = 12
-    resid_pdrop = 0.1
-    embd_pdrop = 0.1
-    attn_pdrop = 0.1
+    resid_pdrop = 0.0
+    embd_pdrop = 0.0
+    attn_pdrop = 0.0
     layer_norm_epsilon = 1e-5
     initializer_range = 0.02
     gradient_checkpointing = True
