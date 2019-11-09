@@ -315,6 +315,7 @@ class GPT2SimpleLM(nn.Module):
 
         # Fast way to compute lower triangle attention mask
         # shape: (batch, num_head, key_length, query_length/seq_length)
+        # print("Mask size: ", mask.shape)
         mask = mask.view(input_ids.shape[0], 1, 1, mask.shape[1]).repeat(
             1, self.config.n_head, mask.shape[1], 1
         )
@@ -343,4 +344,4 @@ class GPT2SmallConfig:
     attn_pdrop = 0.0
     layer_norm_epsilon = 1e-5
     initializer_range = 0.02
-    gradient_checkpointing = False
+    gradient_checkpointing = True
