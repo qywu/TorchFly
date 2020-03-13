@@ -26,7 +26,7 @@ Then install this library in developer mode:
 
 ```bash
 # clone repo
-git clone https://github.com/ECS-251-W2020/final-project-torchfly
+git clone https://github.com/qywu/TorchFly
 
 # install the repo
 pip install -e .
