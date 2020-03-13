@@ -2,10 +2,6 @@
 
 --------------------------------------------------------------------------------
 
-## Notice
-
-This is a repo under construction
-
 ## Installment
 
 
