@@ -9,7 +9,7 @@ from ..utils.file_utils import gdrive_download
 # assert installed
 from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
 
-from .gpt_model import gelu, prune_conv1d_layer, Conv1D, Attention, MLP, Block, GPT2LMHead, GPT2SmallConfig, GPT2Model
+from .gpt_model import gelu, Conv1D, Attention, MLP, Block, GPT2LMHead, GPT2SmallConfig, GPT2Model
 
 # pylint:disable=no-member
 class GPT2SimpleLMwithCopyEncoder(nn.Module):
