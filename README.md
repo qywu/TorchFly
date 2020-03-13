@@ -1,55 +1,51 @@
-# TorchFly
+<img src="docs/images/torchfly.svg" width="300" >
 
-TorchFly is a PyTorch Fast Development Kit. The purpose is to learn the pipelines of the SOTA algorithms in Deep Learning areas like CV, NLP and RL. The utilities provided in this kit will shorten the time needed to rebuild some basic functions. Now, the kit is mainly for personal use, but will be updated from time to time. 
+--------------------------------------------------------------------------------
 
-## Installation
+## Notice
+
+This is a repo under construction
+
+## Installment
+
+
+Please download [conda](https://www.anaconda.com/distribution/#download-section) and create a virtual environment first.
+
+```bash
+# create virtual env
+conda create -n torchfly python=3.6
+```
 
 [apex](https://github.com/qywu/apex) is required, but it may need modifications if cuda version is mismatched.
+
 ```bash
+# make sure ``nvcc`` is installed
 # modified the error due to cuda version
 git clone https://github.com/qywu/apex
 cd apex
 pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 ```
 
+Then install this library in developer mode:
 
+```bash
+# clone repo
+git clone https://github.com/ECS-251-W2020/final-project-torchfly
 
-<!-- has bug
-### Installing via pip: (Not supported for now)
-Installing is simple using `pip`.
-
-```
-pip install torchfly
-```
-
--->
-   
-### Installing from source
-You can clone the repository.
-```
-git clone https://github.com/qywu/TorchFly.git
-cd TorchFly
+# install the repo
 pip install -e .
-pip install -r requirements.txt
 ```
 
+To use the repo,
 
+```python
+import torchfly_dev
+```
 
-## TODOS
- 
-1. Custom Bucket Sampler
+## Weekly Meeting Notes
 
-2. Custom Beam Search
+The most recent meeting notes are updated under `meeting-notes` directory. 
 
+## Trello
 
-[] Remove [Allennlp]() and [transformers]() dependencies
-[] Warum up Scheduler
- 
-
-## Code References
- 
-[FastAI](https://github.com/fastai)
- 
-[AllenNLP](https://github.com/allenai/allennlp/)
- 
-[Pytorch BERT](https://github.com/huggingface/pytorch-pretrained-BERT)
+The most recent progress and updates, https://trello.com/b/z7mDxem8/torchfly
