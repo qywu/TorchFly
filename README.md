@@ -39,13 +39,5 @@ pip install -e .
 To use the repo,
 
 ```python
-import torchfly_dev
+import torchfly
 ```
-
-## Weekly Meeting Notes
-
-The most recent meeting notes are updated under `meeting-notes` directory. 
-
-## Trello
-
-The most recent progress and updates, https://trello.com/b/z7mDxem8/torchfly
