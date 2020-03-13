@@ -1,3 +1,10 @@
+# new
+hydra-core
+hydra-colorlog
+colorlog==4.1.0
+tensorboard
+#### old
 regex
+transformers
 # google drive download
 gdown

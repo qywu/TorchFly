@@ -1,0 +1,46 @@
+defaults:
+    - hydra/job_logging: colorlog
+    - hydra/hydra_logging: colorlog
+hydra:
+    run:
+      # constant if you want to resume the training
+      dir: ./outputs/exp2 # ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S} #./outputs/exp1 # 
+training:
+    resume: true
+    # reproduce
+    random_seed: 123
+    num_gpus_per_node: 1
+    # Mixed Precision
+    fp16: true
+    fp16_opt_level: "O2" # O0 to disable fp16
+    # Optimization
+    learning_rate: 2e-5
+    gradient_accumulation_steps: 1
+    max_gradient_norm: -1.0 # disabled when negative. used for clip_grad_norm
+    optimizer: "AdamW"
+    scheduler: "WarmupLinear" # WarmupConstant, WarmupLinear, WarmupCosine, WarmupCosineWithHardRestarts
+    warmup_steps: 30 # disabled when negative 
+    batch_size: 4
+    total_num_epochs: 3
+    total_num_iterations: 100 # disabled when total_num_epochs > 0
+    validation_iterations_interval: -1 # set to infinite to disable validation
+saving:
+    # when saving.iterations_interval and saving.seconds_interval
+    # are both negative, save the models for every epoch
+    iterations_interval: -1
+    seconds_interval: 100 # disabled when iterations_interval > 1
+    # checkpointer
+    num_checkpoints_to_keep: 2
+    keep_checkpoint_every_num_seconds: 3600
+logging:
+    log_dir: "logs"
+    color: true
+    level: "INFO"    
+    iterations_interval: -1 # disabled when negative
+    seconds_interval: 2 # disabled when `log_iterations_interval` is set
+task:
+    data_dir: /home/wuqy1203/Documents/glue_data/MRPC
+    task_name: mrpc
+    model_name: roberta
+    max_seq_length: 128
+    overwrite_cache: false
