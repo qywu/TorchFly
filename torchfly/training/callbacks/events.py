@@ -1,4 +1,5 @@
 class Events:
+    INITIALIZE = "INITIALIZE"
     # To initialize constants in the callback.
     TRAIN_BEGIN = "TRAIN_BEGIN"
     # At the beginning of each epoch.
@@ -11,6 +12,8 @@ class Events:
     BACKWARD_BEGIN = "BACKWARD_BEGIN"
     # Called after backprop but before optimizer step. Useful for true weight decay in AdamW.
     BACKWARD_END = "BACKWARD_END"
+    # Called before the step of the optimizer
+    STEP_BEGIN = "STEP_BEGIN"
     # Called after the step of the optimizer but before the gradients are zeroed.
     STEP_END = "STEP_END"
     # Called at the end of the batch.

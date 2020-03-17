@@ -1,12 +1,14 @@
 import logging
+from omegaconf import DictConfig
 from typing import Any, Callable
 
 from .events import Events
-from ..trainer import Trainer
 from ...common.registrable import Registrable
 
 logger = logging.getLogger(__name__)
+Trainer = Any
 
+__all__ = ["Callback", "handle_event"]
 
 def handle_event(event: str, priority: int = 0):
     def wrapper(method: Callable[[], None]):
@@ -20,15 +22,23 @@ def handle_event(event: str, priority: int = 0):
 class Callback(Registrable):
     """
     Base class for callbacks that want to record values, dynamically change learner params, etc.
+    It is the programer's responsibility to handler distributed setup here.
+    
+    Attributes:
+        trainer.__master: bool (default = True) It is used in distributed training to identify the master
     """
-    def __init__(self):
+    def __init__(self, config: DictConfig):
         super().__init__()
+        self.config = config
 
-    _order = 0
+    @handle_event(Events.INITIALIZE)
+    def on_initialize(self, trainer: Trainer) -> None:
+        "To initialize before the distributed spawning."
+        pass
 
     @handle_event(Events.TRAIN_BEGIN)
     def on_train_begin(self, trainer: Trainer) -> None:
-        "To initialize constants in the callback."
+        "To initialize constants in the callback. This is after the distributed spawning."
         pass
 
     @handle_event(Events.EPOCH_BEGIN)
@@ -54,6 +64,11 @@ class Callback(Registrable):
     @handle_event(Events.BACKWARD_END)
     def on_backward_end(self, trainer: Trainer) -> None:
         "Called after backprop but before optimizer step. Useful for true weight decay in AdamW."
+        pass
+
+    @handle_event(Events.STEP_BEGIN)
+    def on_step_begin(self, trainer: Trainer) -> None:
+        "Called before the step of the optimizer."
         pass
 
     @handle_event(Events.STEP_END)

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torchvision import datasets, transforms
 
-from torchfly_dev.training import Trainer
+from torchfly.training.trainer import Trainer
 
 from model import get_model
 from dataloader import get_data_loader
@@ -25,7 +25,7 @@ def main(config=None):
     # set data loader
     val_loader = get_data_loader(config, evaluate=True)
     model = get_model()
-    trainer = Trainer(config=config, model=model, validation_loader=val_loader, train_loader_fn=train_loader_fn)
+    trainer = Trainer(config=config, model=model, validation_loader=None, train_loader_fn=train_loader_fn)
     trainer.train()
 
 

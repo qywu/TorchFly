@@ -1,8 +1,8 @@
 # data
+data
 *.arrow
 *.hdf5
 *.pa
-data
 *.json
 *.jsonl
 *.txt
@@ -25,3 +25,5 @@ __pycache__
 .ipynb_checkpoints
 # No MAC
 .DS_Store
+# website
+site

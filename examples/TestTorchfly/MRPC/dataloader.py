@@ -30,6 +30,7 @@ class CycleDataloader(torch.utils.data.DataLoader):
                 "labels": batch[3]
             }
             yield batch
+            
     def __next__(self):
         if self.iterator is None:
             self.iterator = self.__iter__()

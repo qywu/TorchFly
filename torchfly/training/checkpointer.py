@@ -5,10 +5,9 @@ import datetime
 import torch
 import pickle
 import hydra
-from typing import Any, List, Dict, Iterator, Tuple
 import logging
-
-import torchfly_dev
+import torchfly
+from typing import Any, List, Dict, Iterator, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +45,15 @@ class Checkpointer:
         # synchronize background tasks
         if self.sync_every_save:
             for ray_obj in self.background_tasks:
-                torchfly_dev.check_async_status(ray_obj)
+                torchfly.check_async_status(ray_obj)
                 logger.debug("Waiting for history job to finish!")
             self.background_tasks = []
 
         checkpoint_path = os.path.join(self.storage_dir, f"{stamp}_state.pth")
 
         # save the states
-        ray_obj = torchfly_dev.async_save(states, checkpoint_path)
+        ray_obj = torchfly.async_save(states, checkpoint_path)
         self.background_tasks.append(ray_obj)
-
 
         # remove the old one
         if self.num_checkpoints_to_keep >= 0:

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from transformers import RobertaForSequenceClassification
-from torchfly_dev.metrics import Metric, CategoricalAccuracy, F1Measure
+from torchfly.metrics import Metric, CategoricalAccuracy, F1Measure
 
 from typing import Dict
 
