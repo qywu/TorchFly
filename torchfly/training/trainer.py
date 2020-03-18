@@ -56,7 +56,6 @@ class Trainer:
         self.test_loader = test_loader
 
         self.model = model
-        
 
         # local variables
         self.global_iter_count = 0
@@ -104,10 +103,10 @@ class Trainer:
             os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
             os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
 
-            torch.multiprocessing.set_start_method('forkserver')
+            torch.multiprocessing.set_start_method('spawn')
             # multiprocessing.log_to_stderr()
             # TODO: Use Process instead of spawn
-            multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)
+            torch.multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)
             results = {}
         elif self.config.training.num_gpus_per_node == 1:
             logger.info("Initializing Single GPU Training")
@@ -118,13 +117,12 @@ class Trainer:
         return results
 
     def _train(self, rank=0):
-        # Optimizer
-        self.optimizer = self.configure_optimizer()
         self.rank = rank
         self.master = rank == 0
 
         # Training Begin
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
+
         self.train_loader = cycle_wrapper(self.train_loader)
 
         # Scheduler
@@ -225,7 +223,7 @@ class Trainer:
         ]
 
         if self.config.training.optimizer == "AdamW":
-            # return torch.optim.AdamW(self.model.parameters(), lr=self.config.training.learning_rate)
+            # return torch.optim.AdamW(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
             return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         elif self.config.training.optimizer == "Adadelta":
             return torch.optim.Adadelta(optimizer_grouped_parameters, lr=self.config.training.learning_rate)

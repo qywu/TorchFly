@@ -173,7 +173,7 @@ class LogHandler(Callback):
 
         if trainer.no_epoch_training:
             logger.info(
-                f"Train Iteartion - {trainer.global_iter_count:<10} -"
+                f"Train Iteartion - {trainer.global_iter_count * self.config.training.num_gpus_per_node:<10} -"
                 f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
             )
         else:

@@ -15,7 +15,20 @@ from model import PretrainModel
 logger = logging.getLogger(__name__)
 
 def train_loader_fn(config):
-    data = torch.load("/home/wuqy1203/Desktop/Projects/TorchFly/examples/Large Scale Pretrain/data/0.pkl")
+    total_num_sectors = 128
+    sector_size = total_num_sectors // config.training.num_gpus_per_node
+
+    data = []
+    try:
+        rank = torch.distributed.get_rank()
+    except:
+        rank = 0
+        
+    for i in range(sector_size):
+        filename = f"/home/wuqy1203/SIMPLE_DATA/{i + rank * sector_size}.pkl"
+        data.extend(torch.load(filename))
+        logger.info(f"{i + rank * sector_size}.pkl loaded")
+
     # roberta-base.sep_token_id = 2
     def _dataset_init_fn(index):
         return FullDocDataset(data, max_seq_len=510, sep_token_id=2)

@@ -40,7 +40,7 @@ class TrainHandler(Callback):
         pass
 
     @handle_event(Events.TRAIN_BEGIN, priority=100)
-    def configure_training(self, trainer: Trainer):
+    def configure_distributed(self, trainer: Trainer):
         # Reproducibility
         if self.config.training.random_seed:
             set_random_seed(trainer.rank + self.config.training.random_seed)
@@ -64,6 +64,12 @@ class TrainHandler(Callback):
                 backend="nccl", rank=trainer.rank, world_size=self.config.training.num_gpus_per_node
             )
 
+    @handle_event(Events.TRAIN_BEGIN, priority=99)
+    def configure_optimizer(self, trainer: Trainer):
+        trainer.optimizer = trainer.configure_optimizer()
+
+    @handle_event(Events.TRAIN_BEGIN, priority=98)
+    def configure_misc(self, trainer: Trainer):
         # Initialize Dataloader
         # DataLoader
         if trainer.train_loader is None:
@@ -114,6 +120,9 @@ class TrainHandler(Callback):
             if not ray.is_initialized():
                 logger.info(ray.init())
 
+    @handle_event(Events.TRAIN_BEGIN, priority=10)
+    def setup_model(self, trainer: Trainer):
+
         trainer.model = move_to_device(trainer.model, trainer.device)
 
         # FP16
@@ -124,7 +133,7 @@ class TrainHandler(Callback):
 
         if self.config.training.num_gpus_per_node > 1:
             # Distributed training (should be after apex fp16 initialization)
-            # trainer.model = DistributedDataParallel(trainer.model, delay_allreduce=True)
-            trainer.model = torch.nn.parallel.DistributedDataParallel(
-                trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
-            )
+            trainer.model = DistributedDataParallel(trainer.model, delay_allreduce=True)
+            # trainer.model = torch.nn.parallel.DistributedDataParallel(
+            #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
+            # )
