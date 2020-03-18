@@ -115,5 +115,3 @@ dependencies:
     - werkzeug==1.0.0
     - yarl==1.4.2
     - zipp==3.1.0
-prefix: /home/wuqy1203/anaconda3/envs/torchfly
-

@@ -41,6 +41,11 @@ class TrainHandler(Callback):
 
     @handle_event(Events.TRAIN_BEGIN, priority=100)
     def configure_distributed(self, trainer: Trainer):
+        # Disable Profiling
+        if not self.config.training.profiling:
+            torch._C._jit_set_profiling_executor(False)
+            torch._C._jit_set_profiling_mode(False)
+
         # Reproducibility
         if self.config.training.random_seed:
             set_random_seed(trainer.rank + self.config.training.random_seed)
@@ -69,7 +74,7 @@ class TrainHandler(Callback):
         trainer.optimizer = trainer.configure_optimizer()
 
     @handle_event(Events.TRAIN_BEGIN, priority=98)
-    def configure_misc(self, trainer: Trainer):
+    def configure_dataloader(self, trainer: Trainer):
         # Initialize Dataloader
         # DataLoader
         if trainer.train_loader is None:
@@ -78,6 +83,8 @@ class TrainHandler(Callback):
                 raise NotImplementedError
             trainer.train_loader = trainer.train_loader_fn(self.config)
 
+    @handle_event(Events.TRAIN_BEGIN, priority=97)
+    def configure_variables(self, trainer: Trainer):
         if self.config.training.total_num_epochs > 0:
             try:
                 num_training_batches = len(trainer.train_loader)
@@ -114,6 +121,8 @@ class TrainHandler(Callback):
             if not trainer.no_epoch_training:
                 self.config.training.validation_iterations_interval = num_training_batches - 1
 
+    @handle_event(Events.TRAIN_BEGIN, priority=10)
+    def configure_ray(self, trainer: Trainer):
         # Ray Initialize
         if trainer.master:
             # close existing logging
