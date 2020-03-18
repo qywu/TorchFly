@@ -147,7 +147,9 @@ class LogHandler(Callback):
         for metric_name, value in trainer.validate_metrics.items():
             metric_name = metric_name[0].upper() + metric_name[1:]
             if trainer.no_epoch_training:
-                logger.info(f"Iteration {trainer.global_iter_count}: Validation {metric_name} {value:4.4f}")
+                logger.info(
+                    f"Iteration {trainer.global_iter_count * self.config.training.num_gpus_per_node}: Validation {metric_name} {value:4.4f}"
+                )
             else:
                 logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
             if isinstance(value, float):
@@ -160,7 +162,7 @@ class LogHandler(Callback):
             batch_results: Dict
         """
         if trainer.no_epoch_training:
-            percent = 100. * trainer.global_iter_count / trainer.total_num_iterations
+            percent = 100. * trainer.global_iter_count * self.config.training.num_gpus_per_node / trainer.total_num_iterations
         else:
             percent = 100. * trainer.local_iter_count / trainer.num_training_batches
 

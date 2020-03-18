@@ -104,7 +104,7 @@ class Trainer:
             os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
             os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
 
-            torch.multiprocessing.set_start_method('spawn')
+            torch.multiprocessing.set_start_method('forkserver')
             # multiprocessing.log_to_stderr()
             # TODO: Use Process instead of spawn
             multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)

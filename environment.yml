@@ -1,0 +1,18 @@
+name: torchfly
+channels:
+    - conda-forge
+    - defaults
+    - pytorch
+dependencies:
+    - python=3.6   # or 2.7
+    - pytorch=1.4.0
+    - cudatoolkit=10.1
+    - torchvision
+    - hydra-core
+    - hydra-colorlog
+    - colorlog==4.1.0
+    - tensorboard
+    - regex
+    - transformers
+    - gdown
+    
