@@ -29,9 +29,9 @@ class IterableDataLoader:
         if dataset_init_fn is not None:
             self.datasets = [dataset_init_fn(index=i, **kwargs) for i in range(batch_size)]
 
-        if not ray.is_initialized():
-            ray.init()
-            logger.warning("Ray is initialized!")
+        # if not ray.is_initialized():
+        #     ray.init()
+        #     logger.warning("Ray is initialized!")
 
     def __iter__(self):
         #iterators = ray.util.iter.from_iterators(self.datasets).gather_sync()

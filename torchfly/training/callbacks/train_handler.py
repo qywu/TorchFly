@@ -72,14 +72,17 @@ class TrainHandler(Callback):
                 raise NotImplementedError
             trainer.train_loader = trainer.train_loader_fn(self.config)
 
-        try:
-            num_training_batches = len(trainer.train_loader)
-            trainer.no_epoch_training = False
-            trainer.num_training_batches = num_training_batches
-        except TypeError:
-            # connot set the number of total_num_epoch
-            # because it is impossible to know
-            self.config.training.total_num_epochs = -1
+        if self.config.training.total_num_epochs > 0:
+            try:
+                num_training_batches = len(trainer.train_loader)
+                trainer.no_epoch_training = False
+                trainer.num_training_batches = num_training_batches
+            except TypeError:
+                # connot set the number of total_num_epoch
+                # because it is impossible to know
+                self.config.training.total_num_epochs = -1
+                trainer.no_epoch_training = True
+        else:
             trainer.no_epoch_training = True
 
         # Set Num of Epochs and Num of Iterations
@@ -95,7 +98,8 @@ class TrainHandler(Callback):
             if self.config.training.total_num_iterations is None or self.config.training.total_num_iterations < 0:
                 raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_iterations`!")
             else:
-                trainer.total_num_epochs = trainer.total_num_iterations // num_training_batches
+                pass
+                # trainer.total_num_epochs = trainer.total_num_iterations // num_training_batches
 
         # Setup validation interval
         if self.config.training.validation_iterations_interval is None or \
@@ -120,4 +124,7 @@ class TrainHandler(Callback):
 
         if self.config.training.num_gpus_per_node > 1:
             # Distributed training (should be after apex fp16 initialization)
-            trainer.model = DistributedDataParallel(trainer.model)
+            trainer.model = DistributedDataParallel(trainer.model, delay_allreduce=True)
+            # trainer.model = torch.nn.parallel.DistributedDataParallel(
+            #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
+            # )

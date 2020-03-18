@@ -16,6 +16,7 @@ from .callback import Callback, handle_event
 logger = logging.getLogger(__name__)
 Trainer = Any
 
+
 @Callback.register("log_handler")
 class LogHandler(Callback):
     """
@@ -102,8 +103,11 @@ class LogHandler(Callback):
     @handle_event(Events.EPOCH_BEGIN)
     def setup_epoch_timer(self, trainer: Trainer):
         if trainer.master:
-            logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
-            self.epoch_start_time = time.time()
+            if trainer.no_epoch_training:
+                logger.info(f"Training total num of iterations: {trainer.total_num_iterations}")
+            else:
+                logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
+                self.epoch_start_time = time.time()
 
     @handle_event(Events.BATCH_END)
     def on_batch_end(self, trainer: Trainer):
@@ -125,8 +129,9 @@ class LogHandler(Callback):
     @handle_event(Events.EPOCH_END, priority=-100)
     def on_epoch_end(self, trainer: Trainer):
         if trainer.master:
-            epoch_elapsed_time = time.time() - self.epoch_start_time
-            logger.info("Epoch duration: %s", datetime.timedelta(seconds=epoch_elapsed_time))
+            if not trainer.no_epoch_training:
+                epoch_elapsed_time = time.time() - self.epoch_start_time
+                logger.info("Epoch duration: %s", datetime.timedelta(seconds=epoch_elapsed_time))
 
     @handle_event(Events.TRAIN_END)
     def on_train_end(self, trainer: Trainer):
@@ -141,7 +146,10 @@ class LogHandler(Callback):
     def show_metrics(self, trainer: Trainer):
         for metric_name, value in trainer.validate_metrics.items():
             metric_name = metric_name[0].upper() + metric_name[1:]
-            logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
+            if trainer.no_epoch_training:
+                logger.info(f"Iteration {trainer.global_iter_count}: Validation {metric_name} {value:4.4f}")
+            else:
+                logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
             if isinstance(value, float):
                 self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_iter_count)
 
@@ -151,21 +159,26 @@ class LogHandler(Callback):
             trainer: Trainer class
             batch_results: Dict
         """
-        percent = 100. * trainer.local_iter_count / trainer.num_training_batches
+        if trainer.no_epoch_training:
+            percent = 100. * trainer.global_iter_count / trainer.total_num_iterations
+        else:
+            percent = 100. * trainer.local_iter_count / trainer.num_training_batches
 
-        _loss = batch_results['loss'].item() * self.config.training.num_gpus_per_node
+        _loss = batch_results['loss'].item()
 
         self.total_loss += _loss
         self.loss_count += 1
 
-        if self.config.training.total_num_epochs > 0:
+        if trainer.no_epoch_training:
             logger.info(
-                f"Train Epoch: [{trainer.epochs_trained + 1}/{self.config.training.total_num_epochs}]"
-                f" [{percent:7.4f}%]    Loss: {self.total_loss/self.loss_count:8.6f}"
+                f"Train Iteartion - {trainer.global_iter_count:<10} -"
+                f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
             )
         else:
-            # TODO: implement iteration logging
-            raise NotImplementedError
+            logger.info(
+                f"Train Epoch: [{trainer.epochs_trained + 1}/{self.config.training.total_num_epochs}]"
+                f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
+            )
 
         if self.tensorboard:
             self.tensorboard.add_scalar("train/loss", _loss, trainer.global_iter_count + 1)

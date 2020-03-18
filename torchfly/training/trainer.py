@@ -8,6 +8,7 @@ import datetime
 import logging
 from typing import Any, List, Dict, Iterator, Callable
 from omegaconf import DictConfig
+import apex
 from apex import amp
 import numpy as np
 import random
@@ -55,7 +56,7 @@ class Trainer:
         self.test_loader = test_loader
 
         self.model = model
-        self.optimizer = self.configure_optimizer()
+        
 
         # local variables
         self.global_iter_count = 0
@@ -66,11 +67,9 @@ class Trainer:
         self.device = None
 
         # constants
-        self.total_num_iterations = self.config.training.total_num_iterations
-        self.total_num_epochs = self.config.training.total_num_epochs
+        self.total_num_iterations = int(self.config.training.total_num_iterations)
+        self.total_num_epochs = int(self.config.training.total_num_epochs)
 
-        # Scheduler
-        self.scheduler = self.configure_scheduler()
         self.callback_handler = CallbackHandler(
             config, trainer=self, callbacks=self.default_callbacks(), verbose=config.logging.level == "DEBUG"
         )
@@ -100,14 +99,16 @@ class Trainer:
                     "your application as needed. \n"
                     "*****************************************\n".format(os.environ["OMP_NUM_THREADS"])
                 )
-                os.environ["MASTER_ADDR"] = "localhost"
-                os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
-                os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
 
-                torch.multiprocessing.set_start_method('spawn')
-                # multiprocessing.log_to_stderr()
-                multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)
-                results = {}
+            os.environ["MASTER_ADDR"] = "localhost"
+            os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
+            os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
+
+            torch.multiprocessing.set_start_method('spawn')
+            # multiprocessing.log_to_stderr()
+            # TODO: Use Process instead of spawn
+            multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)
+            results = {}
         elif self.config.training.num_gpus_per_node == 1:
             logger.info("Initializing Single GPU Training")
             results = self._train(rank=0)
@@ -117,27 +118,32 @@ class Trainer:
         return results
 
     def _train(self, rank=0):
+        # Optimizer
+        self.optimizer = self.configure_optimizer()
         self.rank = rank
         self.master = rank == 0
 
         # Training Begin
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
         self.train_loader = cycle_wrapper(self.train_loader)
+
+        # Scheduler
         self.scheduler = self.configure_scheduler()
 
         for _ in range(self.global_iter_count, self.total_num_iterations):
             if self.local_iter_count == 0:
                 self.callback_handler.fire_event(Events.EPOCH_BEGIN)
 
-            self.callback_handler.fire_event(Events.BATCH_BEGIN)
-
             # The state should be perserved by torch.get_rng_state
             # However, this solution is not deterministic, but at least it ensures
             # the randomness when loading data
-            batch = next(self.train_loader)
+            self.batch = next(self.train_loader)
 
-            batch = move_to_device(batch, self.device)
-            self.batch_results = self.train_iter(batch)
+            # callback handler has access to trainer.batch
+            self.callback_handler.fire_event(Events.BATCH_BEGIN)
+
+            self.batch = move_to_device(self.batch, self.device)
+            self.batch_results = self.train_iter(self.batch)
 
             # Update the model
             if (self.global_iter_count + 1) % self.config.training.gradient_accumulation_steps == 0:
@@ -206,10 +212,23 @@ class Trainer:
         return metrics
 
     def configure_optimizer(self) -> Optimizer:
+        no_decay = ["bias", "LayerNorm.weight", "ln"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.config.training.weight_decay,
+            },
+            {
+                "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0
+            },
+        ]
+
         if self.config.training.optimizer == "AdamW":
-            return torch.optim.AdamW(self.model.parameters(), lr=self.config.training.learning_rate)
+            # return torch.optim.AdamW(self.model.parameters(), lr=self.config.training.learning_rate)
+            return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         elif self.config.training.optimizer == "Adadelta":
-            return torch.optim.Adadelta(self.model.parameters(), lr=self.config.training.learning_rate)
+            return torch.optim.Adadelta(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         else:
             raise NotImplementedError
 

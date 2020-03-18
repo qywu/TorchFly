@@ -3,28 +3,46 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
+
 # pylint:disable=no-member,invalid-unary-operand-type
 
 
+# @torch.jit.script
 def h_swish(x):
     """Hard Swish: MobileNetV3 https://arxiv.org/pdf/1905.02244.pdf
     """
     return x * F.relu6(x + 3) / 6
 
 
-ACT2FN = {"gelu": F.gelu, "h_swish": h_swish}
+def swish(x):
+    return x * torch.sigmoid_(x)
 
+
+ACT2FN = {"gelu": F.gelu, "h_swish": h_swish, "swish": swish}
+
+
+# class ScaleNorm(nn.Module):
+#     """ScaleNorm"""
+#     def __init__(self, hidden_size, scale, eps=1e-5):
+#         super(ScaleNorm, self).__init__()
+#         self.scale = nn.Parameter(torch.ones(hidden_size) * scale, requires_grad=True)
+#         self.eps = eps
+
+#     def forward(self, x):
+#         norm = self.scale / torch.norm(x, dim=-1, keepdim=True).clamp(min=self.eps)
+#         return x * norm
 
 class ScaleNorm(nn.Module):
     """ScaleNorm"""
-    def __init__(self, scale, eps=1e-5):
-        super(ScaleNorm, self).__init__()
-        self.scale = nn.Parameter(torch.FloatTensor([scale]), requires_grad=True)
-        self.eps = eps
+    def __init__(self, hidden_size, scale, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size), requires_grad=True)
+        self.variance_epsilon = eps
 
     def forward(self, x):
-        norm = self.scale / torch.norm(x, dim=-1, keepdim=True).clamp(min=self.eps)
-        return x * norm
+        variance = x.pow(2).mean(-1, keepdim=True)
+        x = x / torch.sqrt(variance + self.variance_epsilon)
+        return self.weight * x
 
 
 class ExBertEmbeddings(nn.Module):
@@ -32,7 +50,7 @@ class ExBertEmbeddings(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
-        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=0)
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -153,8 +171,8 @@ class ExBertLayer(nn.Module):
         super().__init__()
         self.attention = ExBertSelfAttention(config)
         self.mlp = FeedForward(config)
-        self.feature_norm1 = ScaleNorm(config.hidden_size**0.5, eps=config.layer_norm_eps)
-        self.feature_norm2 = ScaleNorm(config.hidden_size**0.5, eps=config.layer_norm_eps)
+        self.feature_norm1 = ScaleNorm(config.hidden_size, config.hidden_size**0.5, eps=config.layer_norm_eps)
+        self.feature_norm2 = ScaleNorm(config.hidden_size, config.hidden_size**0.5, eps=config.layer_norm_eps)
 
     def forward(self, hidden_states, attention_mask=None):
         attention_outputs = self.attention(self.feature_norm1(hidden_states), attention_mask=attention_mask)
@@ -225,8 +243,7 @@ class ExBertModel(nn.Module):
             attention_mask = input_ids != self.pad_token_id
 
         attention_mask = torch.cat(
-            [attention_mask,
-             torch.ones(input_ids.size(0), self.persistent_mem_size, device=input_ids.device).bool()],
+            [torch.ones(input_ids.size(0), self.persistent_mem_size, device=input_ids.device).bool(), attention_mask],
             dim=1
         )
 
@@ -243,13 +260,19 @@ class ExBertModel(nn.Module):
 
 class ExBertForMaskedLM(nn.Module):
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__()
+        self.config = config
 
         self.bert = ExBertModel(config)
-        self.loss_func = nn.CrossEntropyLoss()  # -100 index = padding token
+        self.loss_func = nn.CrossEntropyLoss(ignore_index=-100)  # -100 index = padding token
 
         self.init_weights()
-        self.set_embeddings_weights(self.bert.embeddings.word_embeddings)
+        self.set_embeddings_weights(self.bert.embeddings.word_embeddings.weight)
+
+    def set_embeddings_weights(self, model_embeddings_weights):
+        embed_shape = model_embeddings_weights.shape
+        self.decoder = nn.Linear(embed_shape[1], embed_shape[0], bias=False)
+        self.decoder.weight = model_embeddings_weights  # Tied weights
 
     def forward(
         self,
@@ -264,15 +287,17 @@ class ExBertForMaskedLM(nn.Module):
             position_ids=position_ids,
         )
 
+        prediction_scores = self.decoder(prediction_scores)
+
+        results = {
+            "outputs": prediction_scores,
+        }
+
         if masked_lm_labels is not None:
             masked_lm_loss = self.loss_func(
                 prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels.view(-1)
             )
-
-        results = {
-            "loss": masked_lm_loss,
-            "outputs": prediction_scores,
-        }
+            results["loss"] = masked_lm_loss
 
         return results
 

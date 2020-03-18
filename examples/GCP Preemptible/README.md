@@ -12,6 +12,19 @@ However, since our model size is often extremely large, the script might not fin
 https://cloud.google.com/compute/docs/instance-groups -->
 
 
+
+# Setup for Google Cloud Instance
+
+## Installation
+
+
+### 1. Create Allow Network Traffic
+
+```bash
+# the most often ports http:80,443 ssh:22
+gcloud compute firewall-rules create qywu-network-rules --allow tcp:80,tcp:443,tcp:22,tcp:8080
+```
+
 ```bash
 docker build -t qingyangwu/torchfly .
 
@@ -26,14 +39,7 @@ docker run --runtime=nvidia --ipc=host -it --rm qingyangwu/torchfly
 
 ```
 
-## Create a GCP preemptible instance
 
-### Allow Network Traffic
-
-```bash
-# the most often ports http:80,443 ssh:22
-gcloud compute firewall-rules create qywu-network-rules --allow tcp:80,tcp:443,tcp:22,tcp:8080
-```
 
 ### To list available Nvidia GCP Images
 

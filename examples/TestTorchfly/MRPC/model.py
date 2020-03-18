@@ -43,7 +43,6 @@ class InferenceModel(nn.Module):
         return metrics
 
 
-
 def get_model():
     model = RobertaForSequenceClassification.from_pretrained("roberta-base")
     model = InferenceModel(model)
