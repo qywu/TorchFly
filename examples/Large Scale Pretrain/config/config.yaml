@@ -9,6 +9,7 @@ training:
     resume: true
     # reproduce
     random_seed: 123
+    num_nodes: 1
     num_gpus_per_node: 8
     # Mixed Precision
     fp16: true

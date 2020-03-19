@@ -1,10 +1,10 @@
-# new
+ray==0.8.2
+regex
+transformers==2.5.1
 hydra-core
 hydra-colorlog
 colorlog==4.1.0
 tensorboard
-#### old
-regex
-transformers
-# google drive download
+tqdm
 gdown
+scikit-learn
