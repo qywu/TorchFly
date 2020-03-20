@@ -71,6 +71,7 @@ class TrainHandler(Callback):
 
     @handle_event(Events.TRAIN_BEGIN, priority=90)
     def configure_optimizer(self, trainer: Trainer):
+        # Optimizer
         trainer.optimizer = trainer.configure_optimizer()
 
     @handle_event(Events.TRAIN_BEGIN, priority=80)
@@ -146,3 +147,8 @@ class TrainHandler(Callback):
             # trainer.model = torch.nn.parallel.DistributedDataParallel(
             #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
             # )
+
+    @handle_event(Events.TRAIN_BEGIN, priority=0)
+    def configure_scheduler(self, trainer: Trainer):
+        # Scheduler
+        trainer.scheduler = trainer.configure_scheduler()

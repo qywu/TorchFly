@@ -125,9 +125,6 @@ class Trainer:
 
         self.train_loader = cycle_wrapper(self.train_loader)
 
-        # Scheduler
-        self.scheduler = self.configure_scheduler()
-
         for _ in range(self.global_iter_count, self.total_num_iterations):
             if self.local_iter_count == 0:
                 self.callback_handler.fire_event(Events.EPOCH_BEGIN)
