@@ -209,7 +209,7 @@ class Trainer:
         return metrics
 
     def configure_optimizer(self) -> Optimizer:
-        no_decay = ["bias", "LayerNorm.weight", "ln"]
+        no_decay = ["bias", "LayerNorm.weight", "ln", "Norm"]
         optimizer_grouped_parameters = [
             {
                 "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],

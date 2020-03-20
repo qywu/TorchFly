@@ -180,7 +180,7 @@ class LogHandler(Callback):
         if trainer.no_epoch_training:
             logger.info(
                 f"Train Steps - {trainer.global_step_count:<10} - "
-                f"[{percent:7.4f}%] - Speed: {speed:4.1f} -"
+                f"[{percent:7.4f}%] - Speed: {speed:4.1f} - "
                 f"Loss: {self.total_loss/self.loss_count:8.6f}"
             )
         else:
