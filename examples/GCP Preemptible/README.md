@@ -90,7 +90,7 @@ gcloud compute instances create qywu-pretrain-test \
     gcloud beta compute ssh --zone "us-west1-b" "qywu-pretrain" --project "nlp-compute-project"
     ```
 
-2. Also, install gcsfuse with 
+2. Then install gcsfuse with 
 (https://github.com/GoogleCloudPlatform/gcsfuse/blob/master/docs/installing.md)
 
     ```bash
@@ -127,10 +127,10 @@ Here is an example of `startup_script.sh`.
 #! /bin/bash
 
 # setup gs bucket
-mkdir /data
-mkdir /workspace/LargePretrain/outputs
-gcsfuse pretrain-data-bucket /data
-gcsfuse pretrain-save-bucket /workspace/LargePretrain/outputs
+mkdir -p /data
+mkdir -p /workspace/pretrain_roberta
+gcsfuse roberta_processed_corpus /data
+gcsfuse qywu-pretrain-roberta-bucket /workspace/pretrain_roberta
 
 # run docker
 docker run -d --ipc=host pretrain

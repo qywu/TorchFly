@@ -87,7 +87,7 @@ class Checkpointer:
         sorted_files = sorted(files, key=os.path.getctime, reverse=True)
 
         for latest_file in sorted_files:
-            latest_file_path = os.path.join(self.storage_dir, latest_file)
+            latest_file_path = latest_file
             try:
                 checkpoint = torch.load(latest_file_path, map_location="cpu")
                 checkpoint["file_path"] = latest_file_path
