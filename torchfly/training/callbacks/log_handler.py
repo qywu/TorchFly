@@ -39,7 +39,7 @@ class LogHandler(Callback):
     def report_init_config(self, trainer: Trainer):
         logger.info(self.config.pretty())
 
-    @handle_event(Events.TRAIN_BEGIN)
+    @handle_event(Events.TRAIN_BEGIN, priority=99)
     def setup_logging(self, trainer: Trainer):
         """
         Configure logging

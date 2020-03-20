@@ -69,11 +69,11 @@ class TrainHandler(Callback):
                 backend="nccl", rank=trainer.rank, world_size=self.config.training.num_gpus_per_node
             )
 
-    @handle_event(Events.TRAIN_BEGIN, priority=99)
+    @handle_event(Events.TRAIN_BEGIN, priority=90)
     def configure_optimizer(self, trainer: Trainer):
         trainer.optimizer = trainer.configure_optimizer()
 
-    @handle_event(Events.TRAIN_BEGIN, priority=98)
+    @handle_event(Events.TRAIN_BEGIN, priority=80)
     def configure_dataloader(self, trainer: Trainer):
         # Initialize Dataloader
         # DataLoader
@@ -83,7 +83,7 @@ class TrainHandler(Callback):
                 raise NotImplementedError
             trainer.train_loader = trainer.train_loader_fn(self.config)
 
-    @handle_event(Events.TRAIN_BEGIN, priority=97)
+    @handle_event(Events.TRAIN_BEGIN, priority=70)
     def configure_variables(self, trainer: Trainer):
         if self.config.training.total_num_epochs > 0:
             try:

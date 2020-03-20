@@ -33,7 +33,7 @@ gcloud compute firewall-rules delete qywu-network-rules
 ### 2. Create a Machine
 
 ```bash
-gcloud compute instances create qywu-pretrain \
+gcloud compute instances create qywu-preemptible \
     --image nvidia-gpu-cloud-image-pytorch-20191120 \
     --image-project nvidia-ngc-public \
     --zone us-west1-b \
@@ -48,20 +48,20 @@ gcloud compute instances create qywu-pretrain \
     --preemptible 
 ```
 
-If you only want to debug, change the accelerator to K80 first:
+If you only want to debug, change the accelerator to T4 first:
 
 ```bash
-gcloud compute instances create qywu-pretrain \
+gcloud compute instances create qywu-preemptible \
     --image nvidia-gpu-cloud-image-pytorch-20191120 \
     --image-project nvidia-ngc-public \
-    --zone us-west1-b \
+    --zone us-west1-a \
     --custom-vm-type n1 \
     --custom-cpu 32 \
     --custom-memory 208GB \
     --boot-disk-size 32GB \
     --boot-disk-type pd-ssd \
     --tags qywu-network-rules \
-    --accelerator type=nvidia-tesla-k80,count=8 \
+    --accelerator type=nvidia-tesla-t4,count=4 \
     --scopes cloud-platform \
     --preemptible 
 ```
@@ -69,7 +69,7 @@ gcloud compute instances create qywu-pretrain \
 or non-gpu version
 
 ```bash
-gcloud compute instances create qywu-pretrain-test \
+gcloud compute instances create qywu-preemptible \
     --image nvidia-gpu-cloud-image-pytorch-20191120 \
     --image-project nvidia-ngc-public \
     --zone us-west1-b \
@@ -87,7 +87,7 @@ gcloud compute instances create qywu-pretrain-test \
 
 1. SSH to the remote server first, 
     ```
-    gcloud beta compute ssh --zone "us-west1-b" "qywu-pretrain" --project "nlp-compute-project"
+    gcloud beta compute ssh --zone "us-west1-a" "qywu-preemptible" --project "nlp-compute-project"
     ```
 
 2. Then install gcsfuse with 
@@ -100,16 +100,6 @@ gcloud compute instances create qywu-pretrain-test \
 
     sudo apt-get update
     sudo apt-get install gcsfuse
-    ```
-
-
-
-3. Then exectute the following:
-
-    ```bash
-    git clone https://github.com/qywu/LargePretrain
-    cd LargePretrain/docker
-    docker build -t pretrain .
     ```
 
 ### 4. Define Autostart Script
