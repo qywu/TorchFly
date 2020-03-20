@@ -23,8 +23,8 @@ training:
     warmup_steps: 30 # disabled when negative 
     batch_size: 48
     total_num_epochs: 10
-    total_num_iterations: 100 # disabled when total_num_epochs > 0
-    validation_iterations_interval: -1 # set to infinite to disable validation
+    total_num_steps: 100 # disabled when total_num_epochs > 0
+    validation_steps_interval: -1 # set to infinite to disable validation
 saving:
     # when saving.iterations_interval and saving.seconds_interval
     # are both negative, save the models for every epoch
@@ -38,7 +38,7 @@ logging:
     color: true
     level: "INFO"    
     iterations_interval: -1 # disabled when negative
-    seconds_interval: 2 # disabled when `log_iterations_interval` is set
+    seconds_interval: 2 # disabled when `log_steps_interval` is set
 task:
     data_dir: /home/wuqy1203/glue_data/MRPC
     task_name: mrpc

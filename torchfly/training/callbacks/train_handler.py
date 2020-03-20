@@ -105,22 +105,22 @@ class TrainHandler(Callback):
             if trainer.no_epoch_training:
                 logger.error("Cannot get the length of train dataloader!")
 
-            trainer.total_num_iterations = num_training_batches * self.config.training.total_num_epochs
+            trainer.total_num_steps = num_training_batches * self.config.training.total_num_epochs
             trainer.total_num_epochs = self.config.training.total_num_epochs
             # num of epochs is not set
         else:
-            if self.config.training.total_num_iterations is None or self.config.training.total_num_iterations < 0:
-                raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_iterations`!")
+            if self.config.training.total_num_steps is None or self.config.training.total_num_steps < 0:
+                raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_steps`!")
             else:
                 pass
-                # trainer.total_num_epochs = trainer.total_num_iterations // num_training_batches
+                # trainer.total_num_epochs = trainer.total_num_steps // num_training_batches
 
         # Setup validation interval
-        if self.config.training.validation_iterations_interval is None or \
-            self.config.training.validation_iterations_interval < 0:
+        if self.config.training.validation_steps_interval is None or \
+            self.config.training.validation_steps_interval < 0:
             # validation for every epoch
             if not trainer.no_epoch_training:
-                self.config.training.validation_iterations_interval = num_training_batches - 1
+                self.config.training.validation_steps_interval = num_training_batches - 1
 
     @handle_event(Events.TRAIN_BEGIN, priority=10)
     def configure_ray(self, trainer: Trainer):

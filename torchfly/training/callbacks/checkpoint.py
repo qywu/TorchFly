@@ -95,10 +95,10 @@ class Checkpoint(Callback):
                     self.__save(trainer)
                     self.last_save_time = current_time
             else:
-                if (trainer.global_iter_count + 1) % self.config.saving.iterations_interval == 0:
+                if (trainer.global_step_count + 1) % self.config.saving.iterations_interval == 0:
                     self.__save(trainer)
 
     def __save(self, trainer: Trainer):
         states = trainer.state_dict()
         states["checkpointer_states"] = self.checkpointer.state_dict()
-        self.checkpointer.save_checkpoint("iter_" + str(trainer.global_iter_count), states)
+        self.checkpointer.save_checkpoint("iter_" + str(trainer.global_step_count), states)

@@ -57,19 +57,19 @@ class ProgressBar():
             parent.add_child(self)
         self.comment = ''
         if not self.auto_update:
-            self.on_iter_begin()
+            self.on_step_begin()
             self.update(0)
 
-    def on_iter_begin(self): pass
+    def on_step_begin(self): pass
 
     def on_interrupt(self): pass
 
-    def on_iter_end(self): pass
+    def on_step_end(self): pass
 
     def on_update(self, val, text): pass
 
     def __iter__(self):
-        self.on_iter_begin()
+        self.on_step_begin()
         self.update(0)
         try:
             for i, o in enumerate(self._gen):
@@ -79,7 +79,7 @@ class ProgressBar():
         except:
             self.on_interrupt()
             raise
-        self.on_iter_end()
+        self.on_step_end()
 
     def update(self, val):
         if val == 0:
@@ -95,7 +95,7 @@ class ProgressBar():
             self.last_v, self.last_t = val, cur_t
             self.update_bar(val)
             if not self.auto_update and val >= self.total:
-                self.on_iter_end()
+                self.on_step_end()
 
     def update_bar(self, val):
         elapsed_t = self.last_t - self.start_t
@@ -115,15 +115,15 @@ class MasterBar():
         gen, total=total, display=False)
 
     def __iter__(self):
-        self.on_iter_begin()
+        self.on_step_begin()
         for o in self.first_bar:
             yield o
-        self.on_iter_end()
+        self.on_step_end()
 
-    def on_iter_begin(self):
+    def on_step_begin(self):
         self.start_t = time()
 
-    def on_iter_end(self): pass
+    def on_step_end(self): pass
 
     def add_child(self, child): pass
 
@@ -168,7 +168,7 @@ class NBProgressBar(ProgressBar):
             0, len(gen) if total is None else total, "")
         super().__init__(gen, total, display, leave, parent, auto_update)
 
-    def on_iter_begin(self):
+    def on_step_begin(self):
         if self.display:
             self.out = display(HTML(self.progress), display_id=True)
         self.is_active = True
@@ -177,9 +177,9 @@ class NBProgressBar(ProgressBar):
         if self.parent is not None:
             self.parent.on_interrupt()
         self.on_update(0, 'Interrupted', interrupted=True)
-        self.on_iter_end()
+        self.on_step_end()
 
-    def on_iter_end(self):
+    def on_step_end(self):
         if not self.leave and self.display:
             clear_output()
         self.is_active = False
@@ -205,7 +205,7 @@ class NBMasterBar(MasterBar):
         self.inner_dict = {'pb1': self.first_bar.progress, 'text': self.text}
         self.hide_graph, self.order = hide_graph, order
 
-    def on_iter_begin(self):
+    def on_step_begin(self):
         self.start_t = time()
         self.out = display(HTML(self.html_code), display_id=True)
 
@@ -213,7 +213,7 @@ class NBMasterBar(MasterBar):
         if self.clean_on_interrupt:
             clear_output()
 
-    def on_iter_end(self):
+    def on_step_end(self):
         plt.close()
         if hasattr(self, 'fig'):
             self.out2.update(self.fig)
@@ -251,9 +251,9 @@ class ConsoleProgressBar(ProgressBar):
         super().__init__(gen, total, display, leave, parent, auto_update)
 
     def on_interrupt(self):
-        self.on_iter_end()
+        self.on_step_end()
 
-    def on_iter_end(self):
+    def on_step_end(self):
         if not self.leave and printing():
             print(f'\r{self.prefix}' + ' ' *
                   (self.max_len - len(f'\r{self.prefix}')), end='\r')
@@ -292,7 +292,7 @@ class ConsoleMasterBar(MasterBar):
         else:
             WRITER_FN(line)
 
-    def on_iter_end(self):
+    def on_step_end(self):
         total_time = format_time(time() - self.start_t)
         WRITER_FN(f'Total time: {total_time}')
 

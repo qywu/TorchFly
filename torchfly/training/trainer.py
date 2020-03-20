@@ -58,15 +58,15 @@ class Trainer:
         self.model = model
 
         # local variables
-        self.global_iter_count = 0
+        self.global_step_count = 0
         self.epochs_trained = 0
-        self.local_iter_count = 0
+        self.local_step_count = 0
         self.no_epoch_training = False
         self.num_training_batches = 0
         self.device = None
 
         # constants
-        self.total_num_iterations = int(self.config.training.total_num_iterations)
+        self.total_num_steps = int(self.config.training.total_num_steps)
         self.total_num_epochs = int(self.config.training.total_num_epochs)
 
         self.callback_handler = CallbackHandler(
@@ -125,8 +125,8 @@ class Trainer:
 
         self.train_loader = cycle_wrapper(self.train_loader)
 
-        for _ in range(self.global_iter_count, self.total_num_iterations):
-            if self.local_iter_count == 0:
+        for _ in range(self.global_step_count, self.total_num_steps):
+            if self.local_step_count == 0:
                 self.callback_handler.fire_event(Events.EPOCH_BEGIN)
 
             # The state should be perserved by torch.get_rng_state
@@ -141,7 +141,7 @@ class Trainer:
             self.batch_results = self.train_iter(self.batch)
 
             # Update the model
-            if (self.global_iter_count + 1) % self.config.training.gradient_accumulation_steps == 0:
+            if (self.global_step_count + 1) % self.config.training.gradient_accumulation_steps == 0:
                 self.callback_handler.fire_event(Events.STEP_BEGIN)
                 self.optimizer.step()
                 self.scheduler.step()
@@ -152,7 +152,7 @@ class Trainer:
 
             # Validation
             if self.master:
-                if (self.global_iter_count + 1) % self.config.training.validation_iterations_interval == 0:
+                if (self.global_step_count + 1) % self.config.training.validation_steps_interval == 0:
                     if self.validation_loader:
                         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
                         self.model.eval()
@@ -160,15 +160,15 @@ class Trainer:
                         self.callback_handler.fire_event(Events.VALIDATE_END)
                         self.model.train()
 
-            if not self.no_epoch_training and (self.local_iter_count + 1) % self.num_training_batches == 0:
+            if not self.no_epoch_training and (self.local_step_count + 1) % self.num_training_batches == 0:
                 self.callback_handler.fire_event(Events.EPOCH_END)
                 self.epochs_trained += 1
-                self.local_iter_count = 0
+                self.local_step_count = 0
             else:
-                self.local_iter_count += 1
+                self.local_step_count += 1
 
             # Post
-            self.global_iter_count += 1
+            self.global_step_count += 1
 
         self.callback_handler.fire_event(Events.TRAIN_END)
         return {}
@@ -233,14 +233,14 @@ class Trainer:
         elif self.config.training.scheduler == "WarmupConstant":
             return WarmupConstantSchedule(self.optimizer, self.config.training.warmup_steps)
         elif self.config.training.scheduler == "WarmupLinear":
-            return WarmupLinearSchedule(self.optimizer, self.config.training.warmup_steps, self.total_num_iterations)
+            return WarmupLinearSchedule(self.optimizer, self.config.training.warmup_steps, self.total_num_steps)
         elif self.config.training.scheduler == "WarmupCosine":
             if self.config.traing.warmup_cosine_cycle is None:
                 cycles = 0.5
             else:
                 cycles = self.config.traing.warmup_cosine_cycle
             return WarmupCosineSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_iterations, cycles=cycles
+                self.optimizer, self.config.training.warmup_steps, self.total_num_steps, cycles=cycles
             )
         elif self.config.training.scheduler == "WarmupCosineWithHardRestartsSchedule":
             if self.config.traing.warmup_cosine_cycle is None:
@@ -248,7 +248,7 @@ class Trainer:
             else:
                 cycles = self.config.traing.warmup_cosine_cycle
             return WarmupCosineWithHardRestartsSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_iterations, cycles=cycles
+                self.optimizer, self.config.training.warmup_steps, self.total_num_steps, cycles=cycles
             )
         else:
             logger.error("Write your own version of `configure_scheduler`!")
@@ -264,8 +264,8 @@ class Trainer:
             model_states = self.model.state_dict()
         states = {
             "epoch": self.epochs_trained,
-            "iteration": self.global_iter_count,
-            "iteration_in_epoch": self.local_iter_count,
+            "iteration": self.global_step_count,
+            "iteration_in_epoch": self.local_step_count,
             "model_states": model_states,
             "optimizer_states": self.optimizer.state_dict(),
             "scheduler_states": self.scheduler.state_dict(),
@@ -279,8 +279,8 @@ class Trainer:
 
     def load_state_dict(self, states: Dict[str, Any]):
         self.epochs_trained = states["epoch"]
-        self.global_iter_count = states["iteration"]
-        self.local_iter_epoch = states["iteration_in_epoch"]
+        self.global_step_count = states["iteration"]
+        self.local_step_epoch = states["iteration_in_epoch"]
         self.model.load_state_dict(states["model_states"])
         self.optimizer.load_state_dict(states["optimizer_states"])
         self.scheduler.load_state_dict(states["scheduler_states"])

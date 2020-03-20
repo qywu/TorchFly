@@ -13,7 +13,7 @@ from ...common.logging_util import configure_logging
 from .events import Events
 from .callback import Callback, handle_event
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("torchfly.training.logger")
 Trainer = Any
 
 
@@ -71,20 +71,20 @@ class LogHandler(Callback):
             root.addHandler(file_handler)
 
             # Setup tensorboard
-            self.tensorboard = SummaryWriter(log_dir=os.getcwd(), purge_step=trainer.global_iter_count)
+            self.tensorboard = SummaryWriter(log_dir=os.getcwd(), purge_step=trainer.global_step_count)
 
             # Choose to log
             self.log_in_seconds = False
             if self.config.logging.iterations_interval <= 0:
                 if (self.config.logging.seconds_interval is None) or (self.config.logging.seconds_interval < 0):
-                    # default log_iterations_interval
+                    # default log_steps_interval
                     logger.warning("logging.iterations_interval is not set. The default is set to 10!")
                     self.config.logging.iterations_interval = 10
                 else:
                     self.log_in_seconds = True
 
             # Decide whether the trainer is resuming the training
-            self.resume_training = trainer.global_iter_count > 0
+            self.resume_training = trainer.global_step_count > 0
 
     # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=-100)
@@ -94,7 +94,7 @@ class LogHandler(Callback):
             # Info the start
             logger.info("Training Starts!")
 
-            if trainer.global_iter_count > 0:
+            if trainer.global_step_count > 0:
                 self.resume_training = True
                 logger.info("Resume the training!")
             else:
@@ -104,7 +104,7 @@ class LogHandler(Callback):
     def setup_epoch_timer(self, trainer: Trainer):
         if trainer.master:
             if trainer.no_epoch_training:
-                logger.info(f"Training total num of iterations: {trainer.total_num_iterations}")
+                logger.info(f"Training total num of iterations: {trainer.total_num_steps}")
             else:
                 logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
                 self.epoch_start_time = time.time()
@@ -123,7 +123,7 @@ class LogHandler(Callback):
                     self.log(trainer, trainer.batch_results)
                     self.last_log_time = current_time
             else:
-                if (trainer.global_iter_count + 1) % self.config.logging.iterations_interval == 0:
+                if (trainer.global_step_count + 1) % self.config.logging.iterations_interval == 0:
                     self.log(trainer, trainer.batch_results)
 
     @handle_event(Events.EPOCH_END, priority=-100)
@@ -148,12 +148,12 @@ class LogHandler(Callback):
             metric_name = metric_name[0].upper() + metric_name[1:]
             if trainer.no_epoch_training:
                 logger.info(
-                    f"Iteration {trainer.global_iter_count}: Validation {metric_name} {value:4.4f}"
+                    f"Iteration {trainer.global_step_count}: Validation {metric_name} {value:4.4f}"
                 )
             else:
                 logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
             if isinstance(value, float):
-                self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_iter_count)
+                self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
 
     def log(self, trainer: Trainer, batch_results: Dict[str, torch.Tensor]):
         """
@@ -162,9 +162,9 @@ class LogHandler(Callback):
             batch_results: Dict
         """
         if trainer.no_epoch_training:
-            percent = 100. * trainer.global_iter_count / trainer.total_num_iterations
+            percent = 100. * trainer.global_step_count / trainer.total_num_steps
         else:
-            percent = 100. * trainer.local_iter_count / trainer.num_training_batches
+            percent = 100. * trainer.local_step_count / trainer.num_training_batches
 
         _loss = batch_results['loss'].item()
 
@@ -173,7 +173,7 @@ class LogHandler(Callback):
 
         if trainer.no_epoch_training:
             logger.info(
-                f"Train Iteartion - {trainer.global_iter_count:<10} -"
+                f"Train Iteartion - {trainer.global_step_count:<10} -"
                 f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
             )
         else:
@@ -183,4 +183,4 @@ class LogHandler(Callback):
             )
 
         if self.tensorboard:
-            self.tensorboard.add_scalar("train/loss", _loss, trainer.global_iter_count + 1)
+            self.tensorboard.add_scalar("train/loss", _loss, trainer.global_step_count + 1)

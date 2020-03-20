@@ -24,8 +24,8 @@ training:
     weight_decay: 0.01
     batch_size: 3
     total_num_epochs: -1
-    total_num_iterations: 8e6 # disabled when total_num_epochs > 0
-    validation_iterations_interval: -1 # set to infinite to disable validation
+    total_num_steps: 8e6 # disabled when total_num_epochs > 0
+    validation_steps_interval: -1 # set to infinite to disable validation
 saving:
     # when saving.iterations_interval and saving.seconds_interval
     # are both negative, save the models for every epoch
@@ -39,7 +39,7 @@ logging:
     color: true
     level: "INFO"   
     iterations_interval: -1 # disabled when negative
-    seconds_interval: 2 # disabled when `log_iterations_interval` is set
+    seconds_interval: 2 # disabled when `log_steps_interval` is set
 model:
     max_position_embeddings: 515
     vocab_size: 50265
