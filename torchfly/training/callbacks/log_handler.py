@@ -75,11 +75,11 @@ class LogHandler(Callback):
 
             # Choose to log
             self.log_in_seconds = False
-            if self.config.logging.iterations_interval <= 0:
+            if self.config.logging.steps_interval <= 0:
                 if (self.config.logging.seconds_interval is None) or (self.config.logging.seconds_interval < 0):
                     # default log_steps_interval
-                    logger.warning("logging.iterations_interval is not set. The default is set to 10!")
-                    self.config.logging.iterations_interval = 10
+                    logger.warning("logging.steps_interval is not set. The default is set to 10!")
+                    self.config.logging.steps_interval = 10
                 else:
                     self.log_in_seconds = True
 
@@ -100,11 +100,13 @@ class LogHandler(Callback):
             else:
                 self.resume_training = False
 
+        self.last_log_global_step = 0
+
     @handle_event(Events.EPOCH_BEGIN)
     def setup_epoch_timer(self, trainer: Trainer):
         if trainer.master:
             if trainer.no_epoch_training:
-                logger.info(f"Training total num of iterations: {trainer.total_num_steps}")
+                logger.info(f"Training total num of steps: {trainer.total_num_steps}")
             else:
                 logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
                 self.epoch_start_time = time.time()
@@ -121,9 +123,8 @@ class LogHandler(Callback):
 
                 if iter_elapsed_time > self.config.logging.seconds_interval:
                     self.log(trainer, trainer.batch_results)
-                    self.last_log_time = current_time
             else:
-                if (trainer.global_step_count + 1) % self.config.logging.iterations_interval == 0:
+                if (trainer.global_step_count + 1) % self.config.logging.steps_interval == 0:
                     self.log(trainer, trainer.batch_results)
 
     @handle_event(Events.EPOCH_END, priority=-100)
@@ -148,7 +149,7 @@ class LogHandler(Callback):
             metric_name = metric_name[0].upper() + metric_name[1:]
             if trainer.no_epoch_training:
                 logger.info(
-                    f"Iteration {trainer.global_step_count}: Validation {metric_name} {value:4.4f}"
+                    f"Steps {trainer.global_step_count}: Validation {metric_name} {value:4.4f}"
                 )
             else:
                 logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
@@ -171,10 +172,16 @@ class LogHandler(Callback):
         self.total_loss += _loss
         self.loss_count += 1
 
+        iter_elapsed_time = time.time() - self.last_log_time
+        elapsed_steps = trainer.global_step_count - self.last_log_global_step 
+                
+        speed = elapsed_steps * self.config.training.batch_size * self.config.training.num_gpus_per_node / iter_elapsed_time
+
         if trainer.no_epoch_training:
             logger.info(
-                f"Train Iteartion - {trainer.global_step_count:<10} -"
-                f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
+                f"Train Steps - {trainer.global_step_count:<10} - "
+                f"[{percent:7.4f}%] - Speed: {speed:4.1f} -"
+                f"Loss: {self.total_loss/self.loss_count:8.6f}"
             )
         else:
             logger.info(
@@ -184,3 +191,11 @@ class LogHandler(Callback):
 
         if self.tensorboard:
             self.tensorboard.add_scalar("train/loss", _loss, trainer.global_step_count + 1)
+            self.tensorboard.add_scalar("train/learning_rate", get_lr(trainer.optimizer), trainer.global_step_count + 1)
+
+        self.last_log_time = time.time()
+        self.last_log_global_step = trainer.global_step_count
+
+def get_lr(optimizer: torch.optim.Optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']

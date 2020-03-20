@@ -62,12 +62,12 @@ class Checkpoint(Callback):
         # Saving
         self.save_in_seconds = False
         # if nothign about saving interval is set
-        if (self.config.saving.iterations_interval is None or self.config.saving.iterations_interval < 0
+        if (self.config.saving.steps_interval is None or self.config.saving.steps_interval < 0
            ) and (self.config.saving.seconds_interval is None or self.config.saving.seconds_interval < 0):
             # then save for every epoch
-            self.config.saving.iterations_interval = num_batches - 1
+            self.config.saving.steps_interval = num_batches - 1
 
-        if self.config.saving.iterations_interval < 0 and self.config.saving.seconds_interval > 0:
+        if self.config.saving.steps_interval < 0 and self.config.saving.seconds_interval > 0:
             self.save_in_seconds = True
 
     @handle_event(Events.TRAIN_BEGIN, priority=-100)
@@ -95,7 +95,7 @@ class Checkpoint(Callback):
                     self.__save(trainer)
                     self.last_save_time = current_time
             else:
-                if (trainer.global_step_count + 1) % self.config.saving.iterations_interval == 0:
+                if (trainer.global_step_count + 1) % self.config.saving.steps_interval == 0:
                     self.__save(trainer)
 
     def __save(self, trainer: Trainer):

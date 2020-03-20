@@ -64,6 +64,8 @@ class Trainer:
         self.no_epoch_training = False
         self.num_training_batches = 0
         self.device = None
+        self.optimizer = None
+        self.scheduler = None
 
         # constants
         self.total_num_steps = int(self.config.training.total_num_steps)
@@ -257,11 +259,11 @@ class Trainer:
     def state_dict(self):
         # TODO: add error handling for saving and loading rng states and amp states
         # which can simply be loading the first device's rng states
-
         if self.config.training.num_gpus_per_node > 1:
             model_states = self.model.module.state_dict()
         else:
             model_states = self.model.state_dict()
+
         states = {
             "epoch": self.epochs_trained,
             "iteration": self.global_step_count,
@@ -281,7 +283,10 @@ class Trainer:
         self.epochs_trained = states["epoch"]
         self.global_step_count = states["iteration"]
         self.local_step_epoch = states["iteration_in_epoch"]
-        self.model.load_state_dict(states["model_states"])
+        if self.config.training.num_gpus_per_node > 1:
+            self.model.module.load_state_dict(states["model_states"])
+        else:
+            self.model.load_state_dict(states["model_states"])
         self.optimizer.load_state_dict(states["optimizer_states"])
         self.scheduler.load_state_dict(states["scheduler_states"])
         # cpu random state
