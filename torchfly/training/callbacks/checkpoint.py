@@ -50,7 +50,7 @@ class Checkpoint(Callback):
         else:
             self.states = None
 
-    @handle_event(Events.TRAIN_BEGIN)
+    @handle_event(Events.TRAIN_BEGIN, priority=10)
     def setup_saving(self, trainer: Trainer):
         try:
             num_batches = len(trainer.train_loader)
@@ -70,7 +70,7 @@ class Checkpoint(Callback):
         if self.config.saving.steps_interval < 0 and self.config.saving.seconds_interval > 0:
             self.save_in_seconds = True
 
-    @handle_event(Events.TRAIN_BEGIN, priority=-100)
+    @handle_event(Events.TRAIN_BEGIN, priority=5)
     def setup(self, trainer: Trainer):
         # Load the model
         # Resume the training

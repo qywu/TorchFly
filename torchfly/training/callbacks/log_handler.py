@@ -70,9 +70,6 @@ class LogHandler(Callback):
             file_handler.setFormatter(file_formatter)
             root.addHandler(file_handler)
 
-            # Setup tensorboard
-            self.tensorboard = SummaryWriter(log_dir=os.getcwd(), purge_step=trainer.global_step_count)
-
             # Choose to log
             self.log_in_seconds = False
             if self.config.logging.steps_interval <= 0:
@@ -87,7 +84,7 @@ class LogHandler(Callback):
             self.resume_training = trainer.global_step_count > 0
 
     # Setup timing
-    @handle_event(Events.TRAIN_BEGIN, priority=-100)
+    @handle_event(Events.TRAIN_BEGIN, priority=1)
     def setup_timer(self, trainer: Trainer):
         if trainer.master:
             self.last_log_time = time.time()
@@ -101,6 +98,11 @@ class LogHandler(Callback):
                 self.resume_training = False
 
         self.last_log_global_step = 0
+
+    @handle_event(Events.TRAIN_BEGIN, priority=1)
+    def setup_tensorboard(self, trainer: Trainer):
+        # Setup tensorboard
+        self.tensorboard = SummaryWriter(log_dir=os.getcwd(), purge_step=trainer.global_step_count)
 
     @handle_event(Events.EPOCH_BEGIN)
     def setup_epoch_timer(self, trainer: Trainer):
