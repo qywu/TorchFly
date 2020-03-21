@@ -226,7 +226,7 @@ class Trainer:
             # return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         elif self.config.training.optimizer == "Adadelta":
             return torch.optim.Adadelta(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
-        elif self.config.training.optimizer == "FusedLamb":
+        elif self.config.training.optimizer == "FusedLAMB":
             return apex.optimizers.FusedLAMB(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         else:
             raise NotImplementedError
