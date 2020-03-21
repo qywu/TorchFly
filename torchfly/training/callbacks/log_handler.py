@@ -35,11 +35,11 @@ class LogHandler(Callback):
         self.total_loss = 0
         self.loss_count = 0
 
-    @handle_event(Events.INITIALIZE, priority=-100)
+    @handle_event(Events.INITIALIZE, priority=100)
     def report_init_config(self, trainer: Trainer):
         logger.info(self.config.pretty())
 
-    @handle_event(Events.TRAIN_BEGIN, priority=99)
+    @handle_event(Events.TRAIN_BEGIN, priority=195)
     def setup_logging(self, trainer: Trainer):
         """
         Configure logging
@@ -80,11 +80,8 @@ class LogHandler(Callback):
                 else:
                     self.log_in_seconds = True
 
-            # Decide whether the trainer is resuming the training
-            self.resume_training = trainer.global_step_count > 0
-
     # Setup timing
-    @handle_event(Events.TRAIN_BEGIN, priority=1)
+    @handle_event(Events.TRAIN_BEGIN, priority=155)
     def setup_timer(self, trainer: Trainer):
         if trainer.master:
             self.last_log_time = time.time()
@@ -99,7 +96,7 @@ class LogHandler(Callback):
 
         self.last_log_global_step = 0
 
-    @handle_event(Events.TRAIN_BEGIN, priority=1)
+    @handle_event(Events.TRAIN_BEGIN, priority=140)
     def setup_tensorboard(self, trainer: Trainer):
         # Setup tensorboard
         self.tensorboard = SummaryWriter(log_dir=os.getcwd(), purge_step=trainer.global_step_count)

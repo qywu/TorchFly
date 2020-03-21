@@ -223,7 +223,8 @@ class Trainer:
 
         if self.config.training.optimizer == "AdamW":
             return torch.optim.AdamW(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
-            # return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
+        elif self.config.training.optimizer == "FusedAdam":
+            return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         elif self.config.training.optimizer == "Adadelta":
             return torch.optim.Adadelta(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
         elif self.config.training.optimizer == "FusedLAMB":

@@ -21,7 +21,7 @@ class Checkpoint(Callback):
     """
     Callback that handles all Tensorboard logging.
     """
-    @handle_event(Events.INITIALIZE, priority=1)
+    @handle_event(Events.INITIALIZE, priority=199)
     def setup_checkpointer(self, trainer: Trainer):
 
         if self.config.saving.save_dir is None:
@@ -40,7 +40,7 @@ class Checkpoint(Callback):
 
         trainer.checkpointer = self.checkpointer
 
-    @handle_event(Events.INITIALIZE)
+    @handle_event(Events.INITIALIZE, priority=195)
     def search_checkpoint(self, trainer: Trainer):
         logger.info("Try to restore the latest checkpoint")
         if self.config.training.resume:
@@ -50,8 +50,8 @@ class Checkpoint(Callback):
         else:
             self.states = None
 
-    @handle_event(Events.TRAIN_BEGIN, priority=10)
-    def setup_saving(self, trainer: Trainer):
+    @handle_event(Events.TRAIN_BEGIN, priority=160)
+    def setup_saving_variables(self, trainer: Trainer):
         try:
             num_batches = len(trainer.train_loader)
         except TypeError:
@@ -70,8 +70,8 @@ class Checkpoint(Callback):
         if self.config.saving.steps_interval < 0 and self.config.saving.seconds_interval > 0:
             self.save_in_seconds = True
 
-    @handle_event(Events.TRAIN_BEGIN, priority=5)
-    def setup(self, trainer: Trainer):
+    @handle_event(Events.TRAIN_BEGIN, priority=170)
+    def load_states(self, trainer: Trainer):
         # Load the model
         # Resume the training
         if self.states is not None:

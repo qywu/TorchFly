@@ -39,7 +39,7 @@ class TrainHandler(Callback):
     def init_distributed(self, trainer: Trainer):
         pass
 
-    @handle_event(Events.TRAIN_BEGIN, priority=100)
+    @handle_event(Events.TRAIN_BEGIN, priority=199)
     def configure_distributed(self, trainer: Trainer):
         # Disable Profiling
         if not self.config.training.profiling:
@@ -69,12 +69,12 @@ class TrainHandler(Callback):
                 backend="nccl", rank=trainer.rank, world_size=self.config.training.num_gpus_per_node
             )
 
-    @handle_event(Events.TRAIN_BEGIN, priority=90)
+    @handle_event(Events.TRAIN_BEGIN, priority=190)
     def configure_optimizer(self, trainer: Trainer):
         # Optimizer
         trainer.optimizer = trainer.configure_optimizer()
 
-    @handle_event(Events.TRAIN_BEGIN, priority=80)
+    @handle_event(Events.TRAIN_BEGIN, priority=175)
     def configure_dataloader(self, trainer: Trainer):
         # Initialize Dataloader
         # DataLoader
@@ -84,7 +84,7 @@ class TrainHandler(Callback):
                 raise NotImplementedError
             trainer.train_loader = trainer.train_loader_fn(self.config)
 
-    @handle_event(Events.TRAIN_BEGIN, priority=70)
+    @handle_event(Events.TRAIN_BEGIN, priority=165)
     def configure_variables(self, trainer: Trainer):
         if self.config.training.total_num_epochs > 0:
             try:
@@ -122,7 +122,7 @@ class TrainHandler(Callback):
             if not trainer.no_epoch_training:
                 self.config.training.validation_steps_interval = num_training_batches - 1
 
-    @handle_event(Events.TRAIN_BEGIN, priority=10)
+    @handle_event(Events.TRAIN_BEGIN, priority=180)
     def configure_ray(self, trainer: Trainer):
         # Ray Initialize
         if trainer.master:
@@ -130,7 +130,7 @@ class TrainHandler(Callback):
             if not ray.is_initialized():
                 logger.info(ray.init())
 
-    @handle_event(Events.TRAIN_BEGIN, priority=10)
+    @handle_event(Events.TRAIN_BEGIN, priority=150)
     def setup_model(self, trainer: Trainer):
 
         trainer.model = move_to_device(trainer.model, trainer.device)
@@ -148,7 +148,14 @@ class TrainHandler(Callback):
             #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
             # )
 
-    @handle_event(Events.TRAIN_BEGIN, priority=9)
+    @handle_event(Events.TRAIN_BEGIN, priority=185)
     def configure_scheduler(self, trainer: Trainer):
         # Scheduler
         trainer.scheduler = trainer.configure_scheduler()
+
+    @handle_event(Events.TRAIN_BEGIN, priority=145)
+    def reload_scheduler(self, trainer: Trainer):
+        # This is just a workaround to the warning
+        scheduler_states = trainer.scheduler.state_dict()
+        trainer.scheduler = trainer.configure_scheduler()
+        trainer.scheduler.load_state_dict(scheduler_states)
