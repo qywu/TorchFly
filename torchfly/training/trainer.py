@@ -314,6 +314,7 @@ class Trainer:
             # if we still cannot load back cuda rng_states, we ignore it
             logger.warning("Cannot restore CUDA random state!")
 
+    def load_amp_state_dict(self, states):
         try:
             # restore amp states
             if self.config.training.fp16:

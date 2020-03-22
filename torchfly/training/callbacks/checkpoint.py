@@ -50,6 +50,12 @@ class Checkpoint(Callback):
         else:
             self.states = None
 
+    @handle_event(Events.TRAIN_BEGIN, priority=190)
+    def load_amp(self, trainer: Trainer):
+        if self.states:
+            trainer.load_amp_state_dict(self.states)
+
+
     @handle_event(Events.TRAIN_BEGIN, priority=160)
     def setup_saving_variables(self, trainer: Trainer):
         try:
