@@ -23,7 +23,8 @@ class Checkpoint(Callback):
     """
     @handle_event(Events.INITIALIZE, priority=199)
     def setup_checkpointer(self, trainer: Trainer):
-
+        self.fix_amp_bug = False
+        
         if self.config.saving.save_dir is None:
             # Saving directory
             self.config.saving.save_dir = "Checkpoints"
@@ -50,11 +51,13 @@ class Checkpoint(Callback):
         else:
             self.states = None
 
-    @handle_event(Events.TRAIN_BEGIN, priority=190)
-    def load_amp(self, trainer: Trainer):
+    @handle_event(Events.BACKWARD_END, priority=100)
+    def fix_amp(self, trainer: Trainer):
         if self.states:
-            trainer.load_amp_state_dict(self.states)
-
+            if not self.fix_amp_bug:
+                trainer.optimizer.load_state_dict(self.states["optimizer_states"])
+                self.fix_amp_bug = True
+            self.states = None
 
     @handle_event(Events.TRAIN_BEGIN, priority=160)
     def setup_saving_variables(self, trainer: Trainer):
@@ -89,6 +92,8 @@ class Checkpoint(Callback):
         # Resume the training
         if self.states is not None:
             trainer.load_state_dict(self.states)
+            # a temp solution to fix amp bug
+            trainer.optimizer.state = {}
             logger.info(f"Loaded the saved checkpoint {self.states['file_path']}")
         else:
             logger.info("Not loading any checkpoint. Training from scratch!")

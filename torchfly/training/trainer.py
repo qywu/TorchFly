@@ -290,10 +290,10 @@ class Trainer:
         except:
             logger.warning("Cannot restore model state!")
 
-        try:
-            self.optimizer.load_state_dict(states["optimizer_states"])
-        except:
-            logger.warning("Cannot restore optimizer state!")
+        # try:
+        #     self.optimizer.load_state_dict(states["optimizer_states"])
+        # except:
+        #     logger.warning("Cannot restore optimizer state!")
 
         try:
             self.scheduler.load_state_dict(states["scheduler_states"])
@@ -313,6 +313,14 @@ class Trainer:
         except (IndexError, RuntimeError):
             # if we still cannot load back cuda rng_states, we ignore it
             logger.warning("Cannot restore CUDA random state!")
+
+        try:
+            # restore amp states
+            if self.config.training.fp16:
+                amp.load_state_dict(states["amp"])
+        except:
+            logger.warning("Cannot restore AMP state!")
+
 
     def load_amp_state_dict(self, states):
         try:
