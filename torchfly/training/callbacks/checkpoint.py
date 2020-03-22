@@ -55,7 +55,11 @@ class Checkpoint(Callback):
     def fix_amp(self, trainer: Trainer):
         if self.states:
             if not self.fix_amp_bug:
-                trainer.optimizer.load_state_dict(self.states["optimizer_states"])
+                try:
+                    trainer.optimizer.load_state_dict(self.states["optimizer_states"])
+                except:
+                    logger.warning("Cannot Load Optimizer States!")
+                logger.warning("A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint")
                 self.fix_amp_bug = True
             self.states = None
 
