@@ -68,7 +68,8 @@ class Trainer:
         self.scheduler = None
 
         # constants
-        self.total_num_steps = int(self.config.training.total_num_steps)
+        self.total_num_update_steps = int(self.config.training.total_num_update_steps)
+        self.total_num_steps = self.total_num_update_steps * int(self.config.training.gradient_accumulation_steps)
         self.total_num_epochs = int(self.config.training.total_num_epochs)
 
         self.callback_handler = CallbackHandler(
@@ -227,14 +228,14 @@ class Trainer:
         elif self.config.training.scheduler == "WarmupConstant":
             return WarmupConstantSchedule(self.optimizer, self.config.training.warmup_steps)
         elif self.config.training.scheduler == "WarmupLinear":
-            return WarmupLinearSchedule(self.optimizer, self.config.training.warmup_steps, self.total_num_steps)
+            return WarmupLinearSchedule(self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps)
         elif self.config.training.scheduler == "WarmupCosine":
             if self.config.traing.warmup_cosine_cycle is None:
                 cycles = 0.5
             else:
                 cycles = self.config.traing.warmup_cosine_cycle
             return WarmupCosineSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_steps, cycles=cycles
+                self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps, cycles=cycles
             )
         elif self.config.training.scheduler == "WarmupCosineWithHardRestartsSchedule":
             if self.config.traing.warmup_cosine_cycle is None:
@@ -242,7 +243,7 @@ class Trainer:
             else:
                 cycles = self.config.traing.warmup_cosine_cycle
             return WarmupCosineWithHardRestartsSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_steps, cycles=cycles
+                self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps, cycles=cycles
             )
         else:
             logger.error("Write your own version of `configure_scheduler`!")

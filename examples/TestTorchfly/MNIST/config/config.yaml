@@ -17,7 +17,7 @@ training:
     warmup_steps: 100 # disabled when negative 
     batch_size: 64
     total_num_epochs: 10
-    total_num_steps: 10 # disabled when total_num_epochs > 0
+    total_num_update_steps: 10 # disabled when total_num_epochs > 0
 saving:
     # when saving.steps_interval and saving.seconds_interval
     # are both negative, save the models for every epoch

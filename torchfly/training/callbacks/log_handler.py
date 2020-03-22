@@ -105,7 +105,7 @@ class LogHandler(Callback):
     def setup_epoch_timer(self, trainer: Trainer):
         if trainer.master:
             if trainer.no_epoch_training:
-                logger.info(f"Training total num of steps: {trainer.total_num_steps}")
+                logger.info(f"Training total num of steps: {trainer.total_num_update_steps}")
             else:
                 logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
                 self.epoch_start_time = time.time()
@@ -161,8 +161,10 @@ class LogHandler(Callback):
             trainer: Trainer class
             batch_results: Dict
         """
+        updated_steps = trainer.global_step_count // self.config.training.gradient_accumulation_steps
+
         if trainer.no_epoch_training:
-            percent = 100. * trainer.global_step_count / trainer.total_num_steps
+            percent = 100. * updated_steps / trainer.total_num_update_steps
         else:
             percent = 100. * trainer.local_step_count / trainer.num_training_batches
 
@@ -178,7 +180,7 @@ class LogHandler(Callback):
 
         if trainer.no_epoch_training:
             logger.info(
-                f"Train Steps - {trainer.global_step_count:<10} - "
+                f"Train Steps - {updated_steps:<10} - "
                 f"[{percent:7.4f}%] - Speed: {speed:4.1f} - "
                 f"Loss: {self.total_loss/self.loss_count:8.6f}"
             )

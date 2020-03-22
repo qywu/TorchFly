@@ -23,7 +23,7 @@ training:
     warmup_steps: 30 # disabled when negative 
     batch_size: 48
     total_num_epochs: 10
-    total_num_steps: 100 # disabled when total_num_epochs > 0
+    total_num_update_steps: 100 # disabled when total_num_epochs > 0
     validation_steps_interval: -1 # set to infinite to disable validation
 saving:
     # when saving.steps_interval and saving.seconds_interval

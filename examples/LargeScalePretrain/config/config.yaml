@@ -24,7 +24,7 @@ training:
     weight_decay: 0.01
     batch_size: 3
     total_num_epochs: -1
-    total_num_steps: 8e6 # disabled when total_num_epochs > 0
+    total_num_update_steps: 8e6 # disabled when total_num_epochs > 0
     validation_steps_interval: -1 # set to infinite to disable validation
 saving:
     # when saving.steps_interval and saving.seconds_interval
