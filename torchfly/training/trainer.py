@@ -90,17 +90,6 @@ class Trainer:
         if self.config.training.num_gpus_per_node > 1:
             logger.info("Initializing Distributed Training")
 
-            if 'OMP_NUM_THREADS' not in os.environ:
-                os.environ["OMP_NUM_THREADS"] = str(4)
-                logger.info(
-                    "\n*****************************************\n"
-                    "Setting OMP_NUM_THREADS environment variable for each process \n"
-                    "to be {} in default, to avoid your system being overloaded, \n"
-                    "please further tune the variable for optimal performance in \n"
-                    "your application as needed. \n"
-                    "*****************************************\n".format(os.environ["OMP_NUM_THREADS"])
-                )
-
             os.environ["MASTER_ADDR"] = "localhost"
             os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
             os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
@@ -286,25 +275,45 @@ class Trainer:
         self.epochs_trained = states["epoch"]
         self.global_step_count = states["iteration"]
         self.local_step_epoch = states["iteration_in_epoch"]
-        if self.config.training.num_gpus_per_node > 1:
-            self.model.module.load_state_dict(states["model_states"])
-        else:
-            self.model.load_state_dict(states["model_states"])
-        self.optimizer.load_state_dict(states["optimizer_states"])
-        self.scheduler.load_state_dict(states["scheduler_states"])
-        # cpu random state
-        torch.set_rng_state(states["cpu_rng_states"])
-        # sometimes we have less number of devices
-        states["cuda_rng_states"] = states["cuda_rng_states"][:torch.cuda.device_count()]
+
         try:
+            if "DistributedDataParallel" in str(type(self.model)):
+                self.model.module.load_state_dict(states["model_states"])
+            else:
+                self.model.load_state_dict(states["model_states"])
+        except:
+            logger.warning("Cannot restore model state!")
+
+        try:
+            self.optimizer.load_state_dict(states["optimizer_states"])
+        except:
+            logger.warning("Cannot restore optimizer state!")
+
+        try:
+            self.scheduler.load_state_dict(states["scheduler_states"])
+        except:
+            logger.warning("Cannot restore scheduler state!")
+
+        try:
+            # cpu random state
+            torch.set_rng_state(states["cpu_rng_states"])
+        except:
+            logger.warning("Cannot restore CPU random state!")
+
+        try:
+            # sometimes we have less number of devices
+            states["cuda_rng_states"] = states["cuda_rng_states"][:torch.cuda.device_count()]
             torch.cuda.set_rng_state_all(states["cuda_rng_states"])
         except (IndexError, RuntimeError):
             # if we still cannot load back cuda rng_states, we ignore it
-            logger.warn("Cannot restore CUDA random state!")
-            pass
-        # restore amp states
-        if self.config.training.fp16:
-            amp.load_state_dict(states["amp"])
+            logger.warning("Cannot restore CUDA random state!")
+
+        try:
+            # restore amp states
+            if self.config.training.fp16:
+                amp.load_state_dict(states["amp"])
+        except:
+            logger.warning("Cannot restore AMP state!")
 
 
 # def set_random_port(self):
