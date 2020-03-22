@@ -27,14 +27,14 @@ We first define the range of priorities that can be used:
 |train.configure_distributed|199|
 |logging.setup_logging|195|
 |train.configure_optimizer|190|
-|trian.configure_scheduler|185|
 |train.configure_ray|180|
 |train.configure_dataloader|175|
-|checkpoint.load_states|170|
+|checkpoint.load_trainer_varibles|170|
 |train.configure_variables|165|
 |checkpoint.setup_saving_variables|160|
 |logging.setup_timer|155|
 |train.setup_model|150|
-|train.reload_scheduler|145|
+|train.configure_scheduler|145|
 |logging.setup_tensorboard|140|
+|checkpoint.load_states|130|
 

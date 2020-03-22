@@ -149,14 +149,7 @@ class TrainHandler(Callback):
             #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
             # )
 
-    @handle_event(Events.TRAIN_BEGIN, priority=185)
+    @handle_event(Events.TRAIN_BEGIN, priority=140)
     def configure_scheduler(self, trainer: Trainer):
         # Scheduler
         trainer.scheduler = trainer.configure_scheduler()
-
-    @handle_event(Events.TRAIN_BEGIN, priority=145)
-    def reload_scheduler(self, trainer: Trainer):
-        # This is just a workaround to the warning
-        scheduler_states = trainer.scheduler.state_dict()
-        trainer.scheduler = trainer.configure_scheduler()
-        trainer.scheduler.load_state_dict(scheduler_states)

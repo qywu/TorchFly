@@ -272,6 +272,11 @@ class Trainer:
             states["amp"] = amp.state_dict()
         return states
 
+    def load_trainer_variables(self, states: Dict[str, Any]):
+        self.epochs_trained = states["epoch"]
+        self.global_step_count = states["iteration"]
+        self.local_step_epoch = states["iteration_in_epoch"]
+
     def load_state_dict(self, states: Dict[str, Any]):
         self.epochs_trained = states["epoch"]
         self.global_step_count = states["iteration"]

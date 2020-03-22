@@ -71,6 +71,13 @@ class Checkpoint(Callback):
             self.save_in_seconds = True
 
     @handle_event(Events.TRAIN_BEGIN, priority=170)
+    def load_trainer_variables(self, trainer: Trainer):
+        # Resume the training
+        if self.states is not None:
+            trainer.load_trainer_variables(self.states)
+
+
+    @handle_event(Events.TRAIN_BEGIN, priority=130)
     def load_states(self, trainer: Trainer):
         # Load the model
         # Resume the training
