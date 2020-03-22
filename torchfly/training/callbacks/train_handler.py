@@ -104,17 +104,17 @@ class TrainHandler(Callback):
         # if the num of epochs is set
         if self.config.training.total_num_epochs > 0:
             trainer.total_num_steps = num_training_batches * self.config.training.total_num_epochs
+            trainer.total_num_update_steps = trainer.total_num_steps // self.config.training.gradient_accumulation_steps
             trainer.total_num_epochs = self.config.training.total_num_epochs
             # num of epochs is not set
         else:
-            if self.config.training.total_num_steps is None or self.config.training.total_num_steps < 0 :
-                raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_steps`!")
+            if self.config.training.total_num_update_steps is None or self.config.training.total_num_update_steps < 0:
+                raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_update_steps`!")
             else:
                 pass
                 # trainer.total_num_epochs = trainer.total_num_steps // num_training_batches
 
-        # Need to adjust for the actual updates
-        trainer.total_num_update_steps = trainer.total_num_steps // self.config.training.gradient_accumulation_steps
+        trainer.total_num_steps = trainer.total_num_update_steps * self.config.training.gradient_accumulation_steps
 
         # Setup validation interval
         if self.config.training.validation_steps_interval is None or \
