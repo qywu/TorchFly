@@ -32,8 +32,8 @@ class LogHandler(Callback):
 
         os.makedirs(self.log_dir, exist_ok=True)
 
-        self.total_loss = 0
-        self.loss_count = 0
+        self.avg_loss = None
+        self.smooth_coef = 0.9
 
     @handle_event(Events.INITIALIZE, priority=100)
     def report_init_config(self, trainer: Trainer):
@@ -170,8 +170,10 @@ class LogHandler(Callback):
 
         _loss = batch_results['loss'].item()
 
-        self.total_loss += _loss
-        self.loss_count += 1
+        if self.avg_loss:
+            self.avg_loss = self.avg_loss * self.smooth_coef + _loss * (1- self.smooth_coef)
+        else:
+            self.avg_loss = _loss
 
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step 
@@ -182,12 +184,12 @@ class LogHandler(Callback):
             logger.info(
                 f"Train Steps - {updated_steps:<10} - "
                 f"[{percent:7.4f}%] - Speed: {speed:4.1f} - "
-                f"Loss: {self.total_loss/self.loss_count:8.6f}"
+                f"Loss: {self.avg_loss:8.6f}"
             )
         else:
             logger.info(
                 f"Train Epoch: [{trainer.epochs_trained + 1}/{self.config.training.total_num_epochs}]"
-                f" [{percent:7.4f}%] - Loss: {self.total_loss/self.loss_count:8.6f}"
+                f" [{percent:7.4f}%] - Loss: {self.avg_loss:8.6f}"
             )
 
         if self.tensorboard:

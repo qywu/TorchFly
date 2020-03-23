@@ -93,7 +93,7 @@ class Checkpointer:
                 checkpoint["file_path"] = latest_file_path
                 logger.info(f"Loading checkpoint {latest_file_path}")
                 return checkpoint
-            except (pickle.UnpicklingError, RuntimeError):
+            except (pickle.UnpicklingError, RuntimeError, TypeError):
                 # skip and remove the corrupted files
                 logger.info(f"Checkpoint {latest_file_path} is corrupted. It will be deleted.")
                 os.remove(latest_file_path)

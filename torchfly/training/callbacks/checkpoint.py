@@ -59,7 +59,8 @@ class Checkpoint(Callback):
                     trainer.optimizer.load_state_dict(self.states["optimizer_states"])
                 except:
                     logger.warning("Cannot Load Optimizer States!")
-                logger.warning("A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint")
+                if trainer.master:
+                    logger.warning("A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint")
                 self.fix_amp_bug = True
             self.states = None
 
