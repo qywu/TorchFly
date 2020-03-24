@@ -84,6 +84,10 @@ class Checkpoint(Callback):
         if self.config.saving.steps_interval < 0 and self.config.saving.seconds_interval > 0:
             self.save_in_seconds = True
 
+        if self.states:
+            # make sure optimzier state is empty
+            trainer.optimizer.state = {}
+
     @handle_event(Events.TRAIN_BEGIN, priority=170)
     def load_trainer_variables(self, trainer: Trainer):
         # Resume the training

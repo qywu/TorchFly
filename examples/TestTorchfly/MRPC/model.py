@@ -45,5 +45,6 @@ class InferenceModel(nn.Module):
 
 def get_model():
     model = RobertaForSequenceClassification.from_pretrained("roberta-base")
+    nn.init.normal_(model.roberta.pooler.dense.weight.data)
     model = InferenceModel(model)
     return model

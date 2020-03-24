@@ -4,12 +4,12 @@ defaults:
 hydra:
     run:
       # constant if you want to resume the training
-      dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S} # ./outputs/exp2 #  #./outputs/exp1 # 
+      dir: ./outputs/exp1 #./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S} # ./outputs/exp2 #  #./outputs/exp1 # 
 training:
     resume: true
     # reproduce
     random_seed: 123
-    num_gpus_per_node: 8
+    num_gpus_per_node: 1
     # Mixed Precision
     fp16: true
     fp16_opt_level: "O1" # O0 to disable fp16
@@ -40,7 +40,7 @@ logging:
     steps_interval: -1 # disabled when negative
     seconds_interval: 2 # disabled when `log_steps_interval` is set
 task:
-    data_dir: /home/wuqy1203/glue_data/MRPC
+    data_dir: /home/wuqy1203/Documents/glue_data/MRPC
     task_name: mrpc
     model_name: roberta
     max_seq_length: 128

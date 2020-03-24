@@ -25,7 +25,7 @@ def main(config=None):
     # set data loader
     val_loader = get_data_loader(config, evaluate=True)
     model = get_model()
-    trainer = Trainer(config=config, model=model, validation_loader=None, train_loader_fn=train_loader_fn)
+    trainer = Trainer(config=config, model=model, validation_loader=val_loader, train_loader_fn=train_loader_fn)
     trainer.train()
 
 

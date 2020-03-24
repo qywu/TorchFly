@@ -151,7 +151,7 @@ class LogHandler(Callback):
                     f"Steps {trainer.global_step_count}: Validation {metric_name} {value:4.4f}"
                 )
             else:
-                logger.info(f"Epoch {trainer.epochs_trained}: Validation {metric_name} {value:4.4f}")
+                logger.info(f"Epoch {trainer.epochs_trained + 1}: Validation {metric_name} {value:4.4f}")
             if isinstance(value, float):
                 self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
 

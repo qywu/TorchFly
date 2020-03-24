@@ -137,9 +137,7 @@ class TrainHandler(Callback):
         trainer.model = move_to_device(trainer.model, trainer.device)
 
         # FP16
-        # make sure optimzier state is empty
-        trainer.optimizer.state = {}
-        if self.config.training.fp16:
+        if self.config.training.fp16:                
             trainer.model, trainer.optimizer = amp.initialize(
                 trainer.model, trainer.optimizer, opt_level=self.config.training.fp16_opt_level
             )
