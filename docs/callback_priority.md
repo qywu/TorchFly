@@ -29,7 +29,7 @@ We first define the range of priorities that can be used:
 |train.configure_optimizer|190|
 |train.configure_ray|180|
 |train.configure_dataloader|175|
-|checkpoint.load_trainer_varibles|170|
+|checkpoint.load_trainer_counts|170|
 |train.configure_variables|165|
 |checkpoint.setup_saving_variables|160|
 |logging.setup_timer|155|

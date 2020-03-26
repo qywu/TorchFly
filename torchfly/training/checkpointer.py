@@ -36,7 +36,7 @@ class Checkpointer:
 
         os.makedirs(storage_dir, exist_ok=True)
 
-    def save_checkpoint(self, stamp: str, states: Dict[str, Any]) -> None:
+    def save_checkpoint(self, stamp: str, model_state_dict: Dict[str, Any], trainer_state_dict: Dict[str, Any]) -> None:
         """
         Args:
             stamp: A string to identify the checkpoint. It can just be the epoch number
@@ -49,55 +49,66 @@ class Checkpointer:
                 logger.debug("Waiting for history job to finish!")
             self.background_tasks = []
 
-        checkpoint_path = os.path.join(self.storage_dir, f"{stamp}_state.pth")
-
-        # save the states
-        ray_obj = torchfly.async_save(states, checkpoint_path)
-        self.background_tasks.append(ray_obj)
+        model_state_path = os.path.join(self.storage_dir, f"{stamp}_model_state.pth")
+        trainer_state_path = os.path.join(self.storage_dir, f"{stamp}_trainer_state.pth")
 
         # remove the old one
         if self.num_checkpoints_to_keep >= 0:
-            self._saved_checkpoint_paths.append((datetime.datetime.now(), checkpoint_path))
+            self._saved_checkpoint_paths.append((datetime.datetime.now(), model_state_path, trainer_state_path))
+            trainer_state_dict["checkpointer_state_dict"] = self.state_dict()
+
+            # save the states
+            ray_obj1 = torchfly.async_save(model_state_dict, model_state_path)
+            ray_obj2 = torchfly.async_save(trainer_state_dict, trainer_state_path)
+            self.background_tasks.append(ray_obj1)
+            self.background_tasks.append(ray_obj2)
 
             if len(self._saved_checkpoint_paths) > self.num_checkpoints_to_keep:
-                path_to_remove = self._saved_checkpoint_paths.pop(0)
+                for _ in range(len(self._saved_checkpoint_paths) - self.num_checkpoints_to_keep):
+                    path_to_remove = self._saved_checkpoint_paths.pop(0)
 
-                # check time requirement
-                remove_path = True
-                if self.keep_checkpoint_every_num_seconds is not None:
-                    save_time = path_to_remove[0]
-                    time_since_checkpoint_kept = (save_time - self._last_checkpoint_time).total_seconds()
-                    if time_since_checkpoint_kept > self.keep_checkpoint_every_num_seconds:
-                        # We want to keep this checkpoint.
-                        remove_path = False
-                        self._last_checkpoint_time = save_time
+                    # check time requirement
+                    remove_path = True
+                    if self.keep_checkpoint_every_num_seconds is not None:
+                        save_time = path_to_remove[0]
+                        time_since_checkpoint_kept = (save_time - self._last_checkpoint_time).total_seconds()
+                        if time_since_checkpoint_kept > self.keep_checkpoint_every_num_seconds:
+                            # We want to keep this checkpoint.
+                            remove_path = False
+                            self._last_checkpoint_time = save_time
 
-                if remove_path:
-                    for fname in path_to_remove[1:]:
-                        if os.path.isfile(fname):
-                            logger.debug(f"Removing {fname}!")
-                            os.remove(fname)
+                    if remove_path:
+                        for fname in path_to_remove[1:]:
+                            if os.path.isfile(fname):
+                                logger.debug(f"Removing {fname}!")
+                                os.remove(fname)
 
     def restore_latest_checkpoint(self) -> [Dict, None]:
         """
         Returns:
             state_dict: return the checkpoint's state dict. None if there is nothing.
         """
-        files = glob.glob(os.path.join(self.storage_dir, "*_state.pth"))
+        files = glob.glob(os.path.join(self.storage_dir, "*model_state.pth"))
         sorted_files = sorted(files, key=os.path.getctime, reverse=True)
 
-        for latest_file in sorted_files:
-            latest_file_path = latest_file
+        for latest_file_path in sorted_files:
+            trainer_state_file = latest_file_path.split("model_state.pth")[0] + "trainer_state.pth"
+            model_state_file = latest_file_path
+
             try:
-                checkpoint = torch.load(latest_file_path, map_location="cpu")
-                checkpoint["file_path"] = latest_file_path
+                model_state_dict = torch.load(model_state_file, map_location="cpu")
+                trainer_state_dict = torch.load(trainer_state_file, map_location="cpu")
+
+                trainer_state_dict["file_path"] = latest_file_path
                 logger.info(f"Loading checkpoint {latest_file_path}")
-                return checkpoint
-            except (pickle.UnpicklingError, RuntimeError, TypeError):
+                return (model_state_dict, trainer_state_dict)
+            except (pickle.UnpicklingError, RuntimeError, TypeError, FileNotFoundError):
                 # skip and remove the corrupted files
-                logger.info(f"Checkpoint {latest_file_path} is corrupted. It will be deleted.")
-                os.remove(latest_file_path)
+                logger.info(f"Checkpoint {trainer_state_file} is corrupted. It will be deleted.")
+                os.remove(trainer_state_file)
+                os.remove(model_state_file)
                 continue
+
         # if found files but failed to load them
         if len(files) > 0:
             logger.info("Fail to retrieve the old checkpoints!")
@@ -106,14 +117,18 @@ class Checkpointer:
 
     def state_dict(self):
         states = {
-            "_saved_checkpoint_paths": [(str(saved_time), path) for saved_time, path in self._saved_checkpoint_paths],
+            "_saved_checkpoint_paths":
+                [
+                    (str(saved_time), model_path, trainer_path)
+                    for saved_time, model_path, trainer_path in self._saved_checkpoint_paths
+                ],
             "_last_checkpoint_time": str(self._last_checkpoint_time)
         }
         return states
 
     def load_state_dict(self, states: Dict[str, Any]):
         self._saved_checkpoint_paths = [
-            (datetime.datetime.strptime(saved_time, '%Y-%m-%d %H:%M:%S.%f'), path)
-            for saved_time, path in states["_saved_checkpoint_paths"]
+            (datetime.datetime.strptime(saved_time, '%Y-%m-%d %H:%M:%S.%f'), model_path, trainer_path)
+            for saved_time, model_path, trainer_path in states["_saved_checkpoint_paths"]
         ]
         self._last_checkpoint_time = datetime.datetime.strptime(states["_last_checkpoint_time"], '%Y-%m-%d %H:%M:%S.%f')

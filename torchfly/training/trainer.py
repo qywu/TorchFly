@@ -250,66 +250,66 @@ class Trainer:
             raise NotImplementedError
 
     def state_dict(self):
-        # TODO: add error handling for saving and loading rng states and amp states
-        # which can simply be loading the first device's rng states
-        if self.config.training.num_gpus_per_node > 1:
-            model_states = self.model.module.state_dict()
-        else:
-            model_states = self.model.state_dict()
-
-        states = {
+        trainer_state_dict = {
             "epoch": self.epochs_trained,
-            "iteration": self.global_step_count,
-            "iteration_in_epoch": self.local_step_count,
-            "model_states": model_states,
-            "optimizer_states": self.optimizer.state_dict(),
-            "scheduler_states": self.scheduler.state_dict(),
-            "cpu_rng_states": torch.get_rng_state(),
-            "cuda_rng_states": torch.cuda.get_rng_state_all(),
+            "global_update_count": self.global_step_count,
+            "local_update_count": self.local_step_count,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "scheduler_state_dict": self.scheduler.state_dict(),
+            "cpu_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }
         # save amp states
         if self.config.training.fp16:
-            states["amp"] = amp.state_dict()
-        return states
+            trainer_state_dict["amp_state_dict"] = amp.state_dict()
+        return trainer_state_dict
 
-    def load_trainer_variables(self, states: Dict[str, Any]):
-        self.epochs_trained = states["epoch"]
-        self.global_step_count = states["iteration"]
-        self.local_step_epoch = states["iteration_in_epoch"]
+    def load_trainer_counts(self, trainer_state_dict: Dict[str, Any]):
+        self.epochs_trained = trainer_state_dict["epoch"]
+        self.global_step_count = trainer_state_dict["global_update_count"]
+        self.local_step_count = trainer_state_dict["local_update_count"]
 
-    def load_state_dict(self, states: Dict[str, Any]):
-        self.epochs_trained = states["epoch"]
-        self.global_step_count = states["iteration"]
-        self.local_step_epoch = states["iteration_in_epoch"]
+    def model_state_dict(self):
+        if "DistributedDataParallel" in str(type(self.model)):
+            return self.model.module.state_dict()
+        else:
+            return self.model.state_dict()
 
+    def load_model_state_dict(self, model_state_dict: Dict[str, Any]):
         try:
             if "DistributedDataParallel" in str(type(self.model)):
-                self.model.module.load_state_dict(states["model_states"])
+                self.model.module.load_state_dict(model_state_dict)
             else:
-                self.model.load_state_dict(states["model_states"])
+                self.model.load_state_dict(model_state_dict)
         except:
             logger.warning("Cannot restore model state!")
 
+    def load_state_dict(self, trainer_state_dict: Dict[str, Any]):
+        self.epochs_trained = trainer_state_dict["epoch"]
+        self.global_step_count = trainer_state_dict["global_update_count"]
+        self.local_step_count = trainer_state_dict["local_update_count"]
+
+        # Because of the AMP error, we cannot load the optimzier here
         # try:
-        #     self.optimizer.load_state_dict(states["optimizer_states"])
+        #     self.optimizer.load_state_dict(trainer_state_dict["optimizer_states"])
         # except:
         #     logger.warning("Cannot restore optimizer state!")
 
         try:
-            self.scheduler.load_state_dict(states["scheduler_states"])
+            self.scheduler.load_state_dict(trainer_state_dict["scheduler_state_dict"])
         except:
             logger.warning("Cannot restore scheduler state!")
 
         try:
             # cpu random state
-            torch.set_rng_state(states["cpu_rng_states"])
+            torch.set_rng_state(trainer_state_dict["cpu_rng_state"])
         except:
             logger.warning("Cannot restore CPU random state!")
 
         try:
             # sometimes we have less number of devices
-            states["cuda_rng_states"] = states["cuda_rng_states"][:torch.cuda.device_count()]
-            torch.cuda.set_rng_state_all(states["cuda_rng_states"])
+            trainer_state_dict["cuda_rng_state"] = trainer_state_dict["cuda_rng_state"][:torch.cuda.device_count()]
+            torch.cuda.set_rng_state_all(trainer_state_dict["cuda_rng_state"])
         except (IndexError, RuntimeError):
             # if we still cannot load back cuda rng_states, we ignore it
             logger.warning("Cannot restore CUDA random state!")
@@ -317,16 +317,15 @@ class Trainer:
         try:
             # restore amp states
             if self.config.training.fp16:
-                amp.load_state_dict(states["amp"])
+                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
         except:
             logger.warning("Cannot restore AMP state!")
 
-
-    def load_amp_state_dict(self, states):
+    def load_amp_state_dict(self, trainer_state_dict):
         try:
-            # restore amp states
+            # restore amp state dict
             if self.config.training.fp16:
-                amp.load_state_dict(states["amp"])
+                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
         except:
             logger.warning("Cannot restore AMP state!")
 

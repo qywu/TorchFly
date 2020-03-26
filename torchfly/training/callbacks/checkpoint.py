@@ -24,7 +24,7 @@ class Checkpoint(Callback):
     @handle_event(Events.INITIALIZE, priority=199)
     def setup_checkpointer(self, trainer: Trainer):
         self.fix_amp_bug = False
-        
+
         if self.config.saving.save_dir is None:
             # Saving directory
             self.config.saving.save_dir = "Checkpoints"
@@ -47,7 +47,7 @@ class Checkpoint(Callback):
         if self.config.training.resume:
             self.states = self.checkpointer.restore_latest_checkpoint()
             if self.states:
-                self.checkpointer.load_state_dict(self.states["checkpointer_states"])
+                self.checkpointer.load_state_dict(self.states[1]["checkpointer_state_dict"])
         else:
             self.states = None
 
@@ -56,11 +56,13 @@ class Checkpoint(Callback):
         if self.states:
             if not self.fix_amp_bug:
                 try:
-                    trainer.optimizer.load_state_dict(self.states["optimizer_states"])
+                    trainer.optimizer.load_state_dict(self.states[1]["optimizer_state_dict"])
                 except:
                     logger.warning("Cannot Load Optimizer States!")
                 if trainer.master:
-                    logger.warning("A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint")
+                    logger.warning(
+                        "A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint"
+                    )
                 self.fix_amp_bug = True
             self.states = None
 
@@ -89,21 +91,21 @@ class Checkpoint(Callback):
             trainer.optimizer.state = {}
 
     @handle_event(Events.TRAIN_BEGIN, priority=170)
-    def load_trainer_variables(self, trainer: Trainer):
+    def load_trainer_counts(self, trainer: Trainer):
         # Resume the training
         if self.states is not None:
-            trainer.load_trainer_variables(self.states)
-
+            trainer.load_trainer_counts(self.states[1])
 
     @handle_event(Events.TRAIN_BEGIN, priority=130)
     def load_states(self, trainer: Trainer):
         # Load the model
         # Resume the training
         if self.states is not None:
-            trainer.load_state_dict(self.states)
+            trainer.load_model_state_dict(self.states[0])
+            trainer.load_state_dict(self.states[1])
             # a temp solution to fix amp bug
             trainer.optimizer.state = {}
-            logger.info(f"Loaded the saved checkpoint {self.states['file_path']}")
+            logger.info(f"Loaded the saved checkpoint {self.states[1]['file_path']}")
         else:
             logger.info("Not loading any checkpoint. Training from scratch!")
 
@@ -126,6 +128,7 @@ class Checkpoint(Callback):
                     self.__save(trainer)
 
     def __save(self, trainer: Trainer):
-        states = trainer.state_dict()
-        states["checkpointer_states"] = self.checkpointer.state_dict()
-        self.checkpointer.save_checkpoint("iter_" + str(trainer.global_step_count), states)
+        trainer_state = trainer.state_dict()
+        self.checkpointer.save_checkpoint(
+            "iter_" + str(trainer.global_step_count), trainer.model_state_dict(), trainer_state
+        )

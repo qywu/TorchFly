@@ -40,8 +40,8 @@ logging:
     steps_interval: -1 # disabled when negative
     seconds_interval: 2 # disabled when `log_steps_interval` is set
 task:
-    data_dir: /home/wuqy1203/Documents/glue_data/MRPC
-    task_name: mrpc
+    data_dir: /home/wuqy1203/Documents/glue_data/QNLI
+    task_name: qnli
     model_name: roberta
     max_seq_length: 128
     overwrite_cache: false

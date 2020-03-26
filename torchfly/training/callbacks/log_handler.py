@@ -85,6 +85,7 @@ class LogHandler(Callback):
     def setup_timer(self, trainer: Trainer):
         if trainer.master:
             self.last_log_time = time.time()
+            self.epoch_start_time = time.time()
             # Info the start
             logger.info("Training Starts!")
 
