@@ -6,3 +6,4 @@ from .checkpoint import Checkpoint
 from .clip_grad_norm import GradientClipNorm
 from .train_handler import TrainHandler
 from .log_handler import LogHandler
+from .plasma_handler import PlasmaHandler

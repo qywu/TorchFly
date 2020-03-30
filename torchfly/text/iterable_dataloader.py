@@ -42,10 +42,7 @@ class IterableDataLoader:
                 # TODO: extend it with Ray
                 # batch = next(iterators)
                 batch = [next(iterators[i]) for i in range(self.batch_size)]
-                try:
-                    yield self.collate_fn(batch)
-                except:
-                    breakpoint()
+                yield self.collate_fn(batch)
             except StopIteration:
                 break
 
