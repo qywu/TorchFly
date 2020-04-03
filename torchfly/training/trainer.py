@@ -82,7 +82,6 @@ class Trainer:
         callbacks.append(LogHandler(self.config))
         callbacks.append(GradientClipNorm(self.config))
         callbacks.append(Checkpoint(self.config))
-        callbacks.append(Checkpoint(self.config))
         callbacks.append(PlasmaHandler(self.config))
         return callbacks
 
