@@ -2,6 +2,7 @@ import os
 import sys
 import ray
 import math
+import atexit
 import signal
 import time
 import datetime
@@ -75,6 +76,7 @@ class Trainer:
         self.callback_handler = CallbackHandler(
             config, trainer=self, callbacks=self.default_callbacks(), verbose=config.logging.level == "DEBUG"
         )
+        atexit.register(self.__del__)
 
     def default_callbacks(self) -> List:
         callbacks = []
@@ -82,12 +84,11 @@ class Trainer:
         callbacks.append(LogHandler(self.config))
         callbacks.append(GradientClipNorm(self.config))
         callbacks.append(Checkpoint(self.config))
-        callbacks.append(Checkpoint(self.config))
-        callbacks.append(PlasmaHandler(self.config))
+        if self.config.training.plasma.initialize_plasma:
+            callbacks.append(PlasmaHandler(self.config))
         return callbacks
 
     def train(self) -> Dict[str, Any]:
-
         self.callback_handler.fire_event(Events.INITIALIZE)
 
         if self.config.training.num_gpus_per_node > 1:
@@ -100,8 +101,10 @@ class Trainer:
             torch.multiprocessing.set_start_method('spawn')
             # multiprocessing.log_to_stderr()
             # TODO: Use Process instead of spawn
-            torch.multiprocessing.spawn(self._train, args=(), nprocs=self.config.training.num_gpus_per_node)
-            results = {}
+            self._spawn_context = torch.multiprocessing.spawn(
+                self._train, args=(), nprocs=self.config.training.num_gpus_per_node, join=False, daemon=True
+            )
+            self._spawn_context.join()
         elif self.config.training.num_gpus_per_node == 1:
             logger.info("Initializing Single GPU Training")
             results = self._train(rank=0)
@@ -136,7 +139,7 @@ class Trainer:
             self.batch_results = self.train_iter(self.batch)
 
             # Update the model
-            if (self.global_step_count + 1) % self.config.training.gradient_accumulation_steps == 0:
+            if (self.global_step_count + 1) % self.config.training.optimization.gradient_accumulation_steps == 0:
                 self.callback_handler.fire_event(Events.STEP_BEGIN)
                 self.optimizer.step()
                 self.scheduler.step()
@@ -172,8 +175,8 @@ class Trainer:
         results = self.model(batch)
         loss = results["loss"]
 
-        if self.config.training.gradient_accumulation_steps > 1:
-            loss = loss / self.config.training.gradient_accumulation_steps
+        if self.config.training.optimization.gradient_accumulation_steps > 1:
+            loss = loss / self.config.training.optimization.gradient_accumulation_steps
 
         self.callback_handler.fire_event(Events.BACKWARD_BEGIN)
         if self.config.training.fp16:
@@ -201,52 +204,70 @@ class Trainer:
             metrics = self.model.get_metrics(reset=True)
         return metrics
 
-    def configure_optimizer(self) -> Optimizer:
-        no_decay = ["bias", "LayerNorm.weight", "ln", "Norm"]
+    def get_optimizer_parameters(self):
+        """
+        This function is used to set parameters with different weight decays
+        """
+        # default groups
+        no_decay = ["bias", "Norm"]
         optimizer_grouped_parameters = [
             {
                 "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.config.training.weight_decay,
+                "weight_decay": self.config.training.optimization.weight_decay,
             },
             {
                 "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
                 "weight_decay": 0.0
             },
         ]
+        return optimizer_grouped_parameters
 
-        if self.config.training.optimizer == "AdamW":
-            return torch.optim.AdamW(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
-        elif self.config.training.optimizer == "FusedAdam":
-            return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
-        elif self.config.training.optimizer == "Adadelta":
-            return torch.optim.Adadelta(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
-        elif self.config.training.optimizer == "FusedLAMB":
-            return apex.optimizers.FusedLAMB(optimizer_grouped_parameters, lr=self.config.training.learning_rate)
+    def configure_optimizer(self) -> Optimizer:
+        optimizer_grouped_parameters = self.get_optimizer_parameters()
+        lr = self.config.training.optimization.learning_rate
+        optimizer_name = self.config.training.optimization.optimizer
+        max_gradient_norm = self.config.training.optimization.max_gradient_norm
+        betas = self.config.training.optimization.betas if self.config.training.optimization.betas else (0.9, 0.999)
+
+        if optimizer_name == "AdamW":
+            return torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
+        elif optimizer_name == "FusedAdam":
+            return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=lr, betas=betas)
+        elif optimizer_name == "Adadelta":
+            return torch.optim.Adadelta(optimizer_grouped_parameters, lr=lr)
+        elif optimizer_name == "FusedLAMB":
+            if max_gradient_norm < 0:
+                max_gradient_norm = 1.0
+            else:
+                # avoid a second clip_grad_norm
+                self.config.training.optimization.max_gradient_norm = -1
+            return apex.optimizers.FusedLAMB(
+                optimizer_grouped_parameters, lr=lr, betas=betas, max_grad_norm=max_gradient_norm
+            )
         else:
             raise NotImplementedError
 
     def configure_scheduler(self) -> LambdaLR:
-        if self.config.training.scheduler == "Constant":
+        scheduler_name = self.config.training.optimization.scheduler
+        warmup_steps = self.config.training.optimization.warmup.warmup_steps
+        warmup_cycle = self.config.traing.optimization.warmup.warmup_cosine_cycle
+
+        if scheduler_name == "Constant":
             return ConstantLRSchedule(self.optimizer)
-        elif self.config.training.scheduler == "WarmupConstant":
-            return WarmupConstantSchedule(self.optimizer, self.config.training.warmup_steps)
-        elif self.config.training.scheduler == "WarmupLinear":
-            return WarmupLinearSchedule(self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps)
-        elif self.config.training.scheduler == "WarmupCosine":
-            if self.config.traing.warmup_cosine_cycle is None:
-                cycles = 0.5
-            else:
-                cycles = self.config.traing.warmup_cosine_cycle
-            return WarmupCosineSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps, cycles=cycles
-            )
-        elif self.config.training.scheduler == "WarmupCosineWithHardRestartsSchedule":
-            if self.config.traing.warmup_cosine_cycle is None:
-                cycles = 0.5
-            else:
-                cycles = self.config.traing.warmup_cosine_cycle
+        elif scheduler_name == "WarmupConstant":
+            return WarmupConstantSchedule(self.optimizer, warmup_steps)
+        elif scheduler_name == "WarmupLinear":
+            return WarmupLinearSchedule(self.optimizer, warmup_steps, self.total_num_update_steps)
+        elif scheduler_name == "WarmupCosine":
+            if warmup_cycle is None:
+                warmup_cycle = 0.5
+            return WarmupCosineSchedule(self.optimizer, warmup_steps, self.total_num_update_steps, cycles=warmup_cycle)
+        elif scheduler_name == "WarmupCosineWithHardRestartsSchedule":
+            if warmup_cycle is None:
+                warmup_cycle = 0.5
+
             return WarmupCosineWithHardRestartsSchedule(
-                self.optimizer, self.config.training.warmup_steps, self.total_num_update_steps, cycles=cycles
+                self.optimizer, warmup_steps, self.total_num_update_steps, cycles=warmup_cycle
             )
         else:
             logger.error("Write your own version of `configure_scheduler`!")
@@ -263,7 +284,7 @@ class Trainer:
             "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }
         # save amp states
-        if self.config.training.fp16:
+        if self.config.training.optimization.fp16:
             trainer_state_dict["amp_state_dict"] = amp.state_dict()
         return trainer_state_dict
 
@@ -291,12 +312,6 @@ class Trainer:
         self.epochs_trained = trainer_state_dict["epoch"]
         self.global_step_count = trainer_state_dict["global_update_count"]
         self.local_step_count = trainer_state_dict["local_update_count"]
-
-        # Because of the AMP error, we cannot load the optimzier here
-        # try:
-        #     self.optimizer.load_state_dict(trainer_state_dict["optimizer_states"])
-        # except:
-        #     logger.warning("Cannot restore optimizer state!")
 
         try:
             self.scheduler.load_state_dict(trainer_state_dict["scheduler_state_dict"])
@@ -332,6 +347,11 @@ class Trainer:
         except:
             logger.warning("Cannot restore AMP state!")
 
+
+    def __del__(self):
+        if self.config.training.num_gpus_per_node > 1:
+            for p in self._spawn_context.processes:
+                p.kill()
 
 # def set_random_port(self):
 #     """

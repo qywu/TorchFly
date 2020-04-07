@@ -39,6 +39,12 @@ class LogHandler(Callback):
     def report_init_config(self, trainer: Trainer):
         logger.info(self.config.pretty())
 
+    @handle_event(Events.INITIALIZE, priority=100)
+    def stop_old_logger(self, trainer: Trainer):
+        # shutdown old processes
+        if trainer.config.training.num_gpus_per_node > 1:
+            logger.shutdown()
+
     @handle_event(Events.TRAIN_BEGIN, priority=195)
     def setup_logging(self, trainer: Trainer):
         """
