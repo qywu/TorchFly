@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import logging
 
-from .file_utils import gdrive_download
-from .support_models_list import supported_models_gdrive_map
+from .download_utils import gdrive_download
+from .supported_pretrained_weights_list import supported_models_gdrive_map
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ def download_gdrive_id(model_name, file_id):
     return states_dict
 
 
-def get_pretrained_states(modelname=None, url=None, gdrive=True):
+def get_pretrained_weights(modelname=None, url=None, gdrive=True):
     # TODO add different sources not only from gdrive
     logger.info(f"Loading {modelname} weights >>")
 

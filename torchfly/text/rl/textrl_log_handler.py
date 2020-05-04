@@ -8,39 +8,13 @@ import collections
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from omegaconf import DictConfig
-from colorlog import colorlog
+import logging
 import atexit
 
-from .events import Events
-from .callback import Callback, handle_event
-import logging
+from torchfly.training.callbacks import Callback, Events, handle_event
 
 logger = logging.getLogger("torchfly.training.logger")
 Trainer = Any
-
-
-def isnotebook():
-    try:
-        shell = get_ipython().__class__.__name__
-        if shell == 'ZMQInteractiveShell':
-            return True  # Jupyter notebook, Spyder or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False  # Probably standard Python interpreter
-
-
-IN_NOTEBOOK = isnotebook()
-
-if IN_NOTEBOOK:
-    try:
-        from IPython.display import clear_output, display, HTML
-        import matplotlib.pyplot as plt
-    except:
-        logger.warn("Couldn't import ipywidgets properly, progress bar will use console behavior")
-        IN_NOTEBOOK = False
 
 
 def get_rank():
@@ -62,8 +36,7 @@ def get_rank():
     return rank, local_rank
 
 
-@Callback.register("log_handler")
-class LogHandler(Callback):
+class TextRLLogHandler(Callback):
     """
     Callback that handles all Tensorboard logging.
     """
@@ -102,15 +75,9 @@ class LogHandler(Callback):
     def report_init_config(self, trainer: Trainer):
         logger.info(self.config.pretty())
 
-    # @handle_event(Events.TRAIN_BEGIN, priority=195)
-    # def setup_logging(self, trainer: Trainer):
-    #     if IN_NOTEBOOK:
-    #         trainer.train_dataloader = tqdm.tqdm(trainer.train_dataloader, total=trainer.total_num_training_steps)
-
-    # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=155)
     def setup_timer(self, trainer: Trainer):
-        
+
         if self.rank == 0:
             self.last_log_time = time.time()
             self.epoch_start_time = time.time()
@@ -133,18 +100,22 @@ class LogHandler(Callback):
             os.makedirs(log_dir, exist_ok=True)
             self.tensorboard = SummaryWriter(log_dir=log_dir, purge_step=trainer.global_step_count)
 
-    @handle_event(Events.EPOCH_BEGIN)
-    def setup_epoch_timer(self, trainer: Trainer):
+    @handle_event(Events.STEP_BEGIN)
+    def debug_step(self, trainer: Trainer):
         if self.rank == 0:
-            if not self.training_in_epoch:
-                logger.info(f"Training total num of steps: {trainer.total_num_update_steps}")
-            else:
-                logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
-                self.epoch_start_time = time.time()
+            # This is only for debug purposes
+            log_string = ""
+            for key, value in trainer.tmp_vars["log_dict"].items():
+                log_string += f"- {key}: {value}"
+
+            logger.debug(log_string)
 
     @handle_event(Events.BATCH_END)
     def on_batch_end(self, trainer: Trainer):
         if self.rank == 0:
+            if len(trainer.replay_buffer) > 0:
+                trainer.tmp_vars["log_dict"]["mean_reward"] = trainer.replay_buffer.reward_mean
+
             if self.resume_training:
                 self.log(trainer, trainer.tmp_vars["log_dict"])
                 self.resume_training = False
@@ -158,46 +129,14 @@ class LogHandler(Callback):
                 if (trainer.global_step_count + 1) % self.config.training.logging.steps_interval == 0:
                     self.log(trainer, trainer.tmp_vars["log_dict"])
 
-    @handle_event(Events.EPOCH_END, priority=100)
-    def on_epoch_end(self, trainer: Trainer):
-        if self.rank == 0:
-            if self.training_in_epoch:
-                epoch_elapsed_time = time.time() - self.epoch_start_time
-                logger.info("Epoch duration: %s", datetime.timedelta(seconds=epoch_elapsed_time))
-
-    @handle_event(Events.TRAIN_END)
-    def on_train_end(self, trainer: Trainer):
-        if self.rank == 0:
-            logging.shutdown()
-            self.tensorboard.close()
-            logger.info("Training Finishes!")
-
-    @handle_event(Events.VALIDATE_END)
-    def show_metrics(self, trainer: Trainer):
-        if self.rank == 0:
-            for metric_name, value in trainer.tmp_vars["validate_metrics"].items():
-                metric_name = metric_name[0].upper() + metric_name[1:]
-                if not self.training_in_epoch:
-                    logger.info(f"Steps {trainer.global_step_count}: Validation {metric_name} {value:4.4f}")
-                else:
-                    logger.info(f"Epoch {trainer.epochs_trained + 1}: Validation {metric_name} {value:4.4f}")
-
-                # tensorboard
-                if isinstance(value, float):
-                    self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
-
     def log(self, trainer: Trainer, log_dict: Dict[str, float]):
         """
         Args:
             trainer: Trainer class
             log_dict: Dict
         """
-        updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
-
-        if not self.training_in_epoch:
-            percent = 100. * updated_steps / (trainer.epoch_num_training_steps // trainer.gradient_accumulation_steps)
-        else:
-            percent = 100. * trainer.local_step_count / trainer.epoch_num_training_steps
+        updated_steps = trainer.global_step_count
+        percent = 100. * updated_steps / trainer.epoch_num_training_steps
 
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
@@ -235,11 +174,7 @@ class LogHandler(Callback):
 
         log_string = log_string.strip(" - ")
 
-        # Only log when not in notebook
-        if not IN_NOTEBOOK:
-            logger.info(log_string)
-        else:
-            trainer.train_dataloader.set_postfix(**log_dict)
+        logger.info(log_string)
 
         self.tensorboard.add_scalar("train/speed", speed, trainer.global_step_count + 1)
         self.tensorboard.add_scalar("train/cumulative_time", self.cumulative_time, trainer.global_step_count + 1)
@@ -251,15 +186,12 @@ class LogHandler(Callback):
         if self.rank == 0:
             logging.shutdown()
             logger.handlers.clear()
-            
+
             if self.tensorboard:
                 self.tensorboard.close()
 
     def state_dict(self):
-        state_dict = {
-            "cumulative_time": self.cumulative_time,
-            "history_log_dict": self.history_log_dict
-        }
+        state_dict = {"cumulative_time": self.cumulative_time, "history_log_dict": self.history_log_dict}
         return state_dict
 
     def load_state_dict(self, state_dict):

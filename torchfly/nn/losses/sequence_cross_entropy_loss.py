@@ -6,15 +6,20 @@ import torch.nn.functional as F
 from typing import Any
 # pylint:disable=no-member
 
+
 class SequenceCrossEntropyLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-    
-    def forward(self, logits, targets, mask, label_smoothing=-1, reduce=None):
+    def __init__(self, label_smoothing=-1, reduce=None):
         """
         reduce: None, "batch", "sentence"
         """
-        return sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, reduce)
+        super().__init__()
+        self.reduce = reduce
+        self.label_smoothing = label_smoothing
+        if not self.reduce in [None, "none", "batch", "sentence"]:
+            raise NotImplementedError
+
+    def forward(self, logits, targets, mask):
+        return sequence_cross_entropy_with_logits(logits, targets, mask, self.label_smoothing, self.reduce)
 
 
 def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, reduce):
@@ -40,20 +45,19 @@ def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, r
         negative_log_likelihood_flat = negative_log_likelihood_flat.sum(-1, keepdim=True)
     else:
         # shape : (batch * sequence_length, 1)
-        negative_log_likelihood_flat = - torch.gather(log_probs_flat, dim=1, index=targets_flat)
-                                       
+        negative_log_likelihood_flat = -torch.gather(log_probs_flat, dim=1, index=targets_flat)
+
     # shape : (batch, sequence_length)
     negative_log_likelihood = negative_log_likelihood_flat.view(-1, logits.shape[1])
-    
+
     # shape : (batch, sequence_length)
     loss = negative_log_likelihood * mask
 
     if reduce:
         # shape : (batch,)
-        loss = loss.sum(1) / (mask.sum(1) + 1e-13)
-        
+        # we favor longer sequences, so we don't divide with the total sequence length here
+        loss = loss.sum(1)  # / (mask.sum(1) + 1e-13)
         if reduce is "batch":
             # shape : scalar
             loss = loss.mean()
-
     return loss

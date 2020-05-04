@@ -28,7 +28,8 @@ class CallbackHandler:
             verbose : bool, optional (default = False) Used for debugging.
         """
         self.trainer = trainer
-        self.callbacks: Dict[str, List[EventHandler]] = defaultdict(list)
+        self.events: Dict[str, List[EventHandler]] = defaultdict(list)
+        self.callbacks = []
 
         for callback in callbacks:
             self.add_callback(callback)
@@ -36,27 +37,29 @@ class CallbackHandler:
         self.verbose = verbose
 
     def add_callback(self, callback: Callback) -> None:
+        self.callbacks.append(callback)
+
         for name, method in inspect.getmembers(callback, _is_event_handler):
             event = getattr(method, "_event")
             priority = getattr(method, "_priority")
-            self.callbacks[event].append(EventHandler(name, callback, method, priority))
-            self.callbacks[event].sort(key=lambda _evt: _evt.priority, reverse=True)
+            self.events[event].append(EventHandler(name, callback, method, priority))
+            self.events[event].sort(key=lambda _evt: _evt.priority, reverse=True)
 
     def fire_event(self, event: str) -> None:
         """
         Runs every callback registered for the provided event,
         ordered by their priorities.
         """
-        for event_handler in self.callbacks.get(event, []):
+        for event_handler in self.events.get(event, []):
             if self.verbose:
                 logger.debug(f"event {event} -> {event_handler.name}")
             event_handler.handler(self.trainer)
 
-    def list_callbacks(self) -> List[Callback]:
+    def list_events(self) -> List[Callback]:
         """
         Returns the callbacks associated with this handler.
         Each callback may be registered under multiple events,
         but we make sure to only return it once. If `typ` is specified,
         only returns callbacks of that type.
         """
-        return list({callback.callback for callback_list in self.callbacks.values() for callback in callback_list})
+        return list({event.callback for event_list in self.events.values() for event in event_list})

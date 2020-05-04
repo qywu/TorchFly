@@ -30,7 +30,8 @@ class PlasmaManager:
         if isinstance(self.plasma_store_proc, subprocess.Popen):
             self.plasma_store_proc.kill()
 
-        logger.info("Plasma is ended!")
+        if self.connected:
+            logger.info("Plasma is ended!")
 
 
 _global_manager = PlasmaManager()

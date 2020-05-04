@@ -94,21 +94,7 @@ class TrainHandler(Callback):
             except TypeError:
                 # connot set the number of total_num_epoch
                 # because it is impossible to know
-                logger.error("Cannot get the length of train dataloader!")
-                self.config.training.total_num_epochs = -1
-                trainer.no_epoch_training = True
-        else:
-            trainer.no_epoch_training = True
-
-        # Set Num of Epochs and Num of Iterations
-        # if the num of epochs is set
-        if self.config.training.total_num_epochs > 0:
-            trainer.total_num_steps = num_training_batches * self.config.training.total_num_epochs
-            trainer.total_num_update_steps = trainer.total_num_steps // self.config.training.gradient_accumulation_steps
-            trainer.total_num_epochs = self.config.training.total_num_epochs
-            # num of epochs is not set
-        else:
-            if self.config.training.total_num_update_steps is None or self.config.training.total_num_update_steps < 0:
+                logger.error("Cannot get the length of train dtrainer.model")
                 raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_update_steps`!")
             else:
                 pass

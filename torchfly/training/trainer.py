@@ -1,145 +1,207 @@
-import os
-import sys
-import ray
-import math
-import atexit
-import signal
-import time
-import datetime
-import logging
 from typing import Any, List, Dict, Iterator, Callable
+import os
+import random
+import numpy as np
+import torch
+import torch.nn as nn
 from omegaconf import DictConfig
 import apex
 from apex import amp
-import numpy as np
-import random
-import torch
-import torch.nn as nn
-from torch.optim.lr_scheduler import LambdaLR
-from torch.optim import Optimizer
-import torch.multiprocessing as multiprocessing
+from apex.parallel import DistributedDataParallel, Reducer
+# from torch.nn.parallel import DistributedDataParallel
 
+# local imports
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
-from torchfly.training.callbacks import TrainHandler, LogHandler, GradientClipNorm, Checkpoint, PlasmaHandler
-from torchfly.training.checkpointer import Checkpointer
-from torchfly.training.optimization import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
-    WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule
-from torchfly.common import move_to_device, configure_logging
+from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint
+from torchfly.common import move_to_device
+from torchfly.training import FlyModule
+
+import logging
 
 logger = logging.getLogger(__name__)
 
-
-def cycle_wrapper(dataloader):
-    while True:
-        for element in dataloader.__iter__():
-            yield element
+# pylint: disable=no-member
 
 
-class Trainer:
+def get_rank():
+    """
+    We use environment variables to pass the rank info
+    Returns:
+        rank: rank in the multi-node system 
+        local_rank: local rank on a node
+    """
+    if "RANK" not in os.environ or "LOCAL_RANK" not in os.environ:
+        rank = 0
+        local_rank = 0
+        os.environ["RANK"] = str(0)
+        os.environ["LOCAL_RANK"] = str(0)
+    else:
+        rank = int(os.environ["RANK"])
+        local_rank = int(os.environ["LOCAL_RANK"])
+
+    return rank, local_rank
+
+
+class TrainerLoop:
     def __init__(
         self,
         config: DictConfig,
-        model: nn.Module = None,
-        train_loader: Iterator = None,
-        train_loader_fn: Callable = None,
-        validation_loader: Iterator = None,
-        test_loader: Iterator = None,
+        model: FlyModule,
+        train_dataloader_fn: Callable,
+        valid_dataloader_fn: Callable = None,
+        test_dataloader_fn: Callable = None
     ):
         """
-        Do not send anything to cuda in __init__
+        Args:
+            config: hydra configureation dictionary
+            model: must be FlyModule
+            dataloader_fn: a Callable function which returns dataloaders
         """
         self.config = config
+        self.rank, self.local_rank = get_rank()
 
-        # # Data Loading
-        self.train_loader = train_loader
-        self.train_loader_fn = train_loader_fn
-        self.validation_loader = validation_loader
-        self.test_loader = test_loader
+        # Distributed
+        if self.config.training.num_gpus_per_node > 1:
+            # Init distributed
+            # TODO: multi-node multi-gpu training
+            torch.distributed.init_process_group(
+                backend="nccl", rank=self.rank, world_size=self.config.training.num_gpus_per_node * 1
+            )
 
+        # configure distributed training
         self.model = model
+
+        self.train_dataloader = train_dataloader_fn(config)
+        self.validation_dataloader = valid_dataloader_fn(config) if valid_dataloader_fn else None
+        self.test_dataloader = test_dataloader_fn(config) if test_dataloader_fn else None
+
+        self.callback_handler = CallbackHandler(
+            config, trainer=self, callbacks=[], verbose=config.training.logging.level == "DEBUG"
+        )
+
+        # constants
+        self.gradient_accumulation_steps = config.training.optimization.gradient_accumulation_steps
+        self.validation_steps_interval = config.training.validation.steps_interval
+        self.fp16 = config.training.optimization.fp16
+        self.fp16_opt_level = config.training.optimization.fp16_opt_level
+        self.distributed_training = False
+
+        self.total_num_update_steps = int(config.training.total_num.update_steps)
+        self.total_num_steps = self.total_num_update_steps * int(self.gradient_accumulation_steps)
+        self.total_num_epochs = int(self.config.training.total_num.epochs)
+
+        # Train in epochs or steps
+        if self.total_num_epochs > 0:
+            self.training_in_epoch = True
+        else:
+            if self.total_num_update_steps < 0:
+                raise NotImplementedError("config.training.total_num.updated_steps must be larger than 0")
+            self.training_in_epoch = False
+            self.total_num_epochs = 1
+
+        # Number of training batches
+        if self.training_in_epoch:
+            try:
+                self.epoch_num_training_steps = len(self.train_dataloader)
+                self.total_num_training_steps = self.epoch_num_training_steps * self.total_num_epochs
+                self.total_num_update_steps = self.total_num_training_steps // self.gradient_accumulation_steps
+            except TypeError:
+                # connot set the number of total_num_epoch
+                # because it is impossible to know
+                logger.error("Cannot get the length of train dtrainer.model")
+                raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_update_steps`!")
+        else:
+            self.num_training_steps_in_epoch = self.total_num_update_steps
+            self.epoch_num_training_steps = self.total_num_update_steps
+
+        # Validation steps interval
+        if self.validation_steps_interval < 0:
+            self.validation_steps_interval = self.epoch_num_training_steps - 1
 
         # local variables
         self.global_step_count = 0
         self.epochs_trained = 0
         self.local_step_count = 0
-        self.no_epoch_training = False
-        self.num_training_batches = 0
-        self.device = None
-        self.optimizer = None
-        self.scheduler = None
 
-        # constants
-        self.total_num_update_steps = int(self.config.training.total_num_update_steps)
-        self.total_num_steps = self.total_num_update_steps * int(self.config.training.gradient_accumulation_steps)
-        self.total_num_epochs = int(self.config.training.total_num_epochs)
+        # set cuda device
+        if config.training.num_gpus_per_node > 1:
+            torch.cuda.set_device(self.rank)
+            self.device = torch.device("cuda", self.local_rank)
+        elif config.training.num_gpus_per_node == 1:
+            self.device = torch.device("cuda")
+        else:
+            self.device = torch.device("cpu")
 
-        self.callback_handler = CallbackHandler(
-            config, trainer=self, callbacks=self.default_callbacks(), verbose=config.logging.level == "DEBUG"
-        )
-        atexit.register(self.__del__)
+        # Configure optimizers
+        self.optimizers, self.schedulers = self.model.configure_optimizers(self.total_num_update_steps)
 
-    def default_callbacks(self) -> List:
-        callbacks = []
-        callbacks.append(TrainHandler(self.config))
-        callbacks.append(LogHandler(self.config))
-        callbacks.append(GradientClipNorm(self.config))
-        callbacks.append(Checkpoint(self.config))
-        if self.config.training.plasma.initialize_plasma:
-            callbacks.append(PlasmaHandler(self.config))
-        return callbacks
+        # Model is sent to GPU or CPU
+        self.model = move_to_device(self.model, self.device)
 
-    def train(self) -> Dict[str, Any]:
+        self.configure_fp16()
+        self.configure_ddp()
+        self.configure_callbacks()
+
+        self.tmp_vars = {}
         self.callback_handler.fire_event(Events.INITIALIZE)
 
+    def configure_callbacks(self):
+        # Callback
+        # by default set up LogHandler and Checkpointer
+        self.checkpoint_callback = Checkpoint(self.config)
+        self.add_callback(self.checkpoint_callback)
+
+        if self.rank == 0:
+            self.log_callback = LogHandler(self.config)
+            self.add_callback(self.log_callback)
+
+    def configure_fp16(self):
+        # FP16
+        if self.fp16 and self.config.training.num_gpus_per_node > 0:
+            self.model, self.optimizers = amp.initialize(self.model, self.optimizers, opt_level=self.fp16_opt_level)
+
+    def configure_ddp(self):
         if self.config.training.num_gpus_per_node > 1:
-            logger.info("Initializing Distributed Training")
+            # Distributed training (should be after apex fp16 initialization)
+            self.distributed_training = True
+            self.model = DistributedDataParallel(self.model, delay_allreduce=True)
+            # trainer.model = torch.nn.parallel.DistributedDataParallel(
+            #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
+            # )
 
-            os.environ["MASTER_ADDR"] = "localhost"
-            os.environ["MASTER_PORT"] = str(random.randint(20000, 29000))  # use a random port, but might collide
-            os.environ["WORLD_SIZE"] = str(self.config.training.num_gpus_per_node)
-
-            torch.multiprocessing.set_start_method('spawn')
-            # multiprocessing.log_to_stderr()
-            # TODO: Use Process instead of spawn
-            self._spawn_context = torch.multiprocessing.spawn(
-                self._train, args=(), nprocs=self.config.training.num_gpus_per_node, join=False, daemon=True
-            )
-            self._spawn_context.join()
-        elif self.config.training.num_gpus_per_node == 1:
-            logger.info("Initializing Single GPU Training")
-            results = self._train(rank=0)
-        else:
-            raise NotImplementedError("Do you mean CPU training?")
-
-        return results
-
-    def _train(self, rank=0):
-        self.rank = rank
-        self.config.rank = rank
-        self.master = rank == 0
-
-        # Training Begin
+    def train(self):
+        # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
 
-        self.train_loader = cycle_wrapper(self.train_loader)
+        for _ in range(self.epochs_trained, self.total_num_epochs):
+            self.callback_handler.fire_event(Events.EPOCH_BEGIN)
+            self.train_epoch()
+            self.callback_handler.fire_event(Events.EPOCH_END)
+            self.epochs_trained += 1
 
-        for _ in range(self.global_step_count, self.total_num_steps):
-            if self.local_step_count == 0:
-                self.callback_handler.fire_event(Events.EPOCH_BEGIN)
+        # Training ends
+        self.callback_handler.fire_event(Events.TRAIN_END)
 
-            # The state should be perserved by torch.get_rng_state
-            # However, this solution is not deterministic, but at least it ensures
-            # the randomness when loading data
-            self.batch = next(self.train_loader)
+        # Only rank 0 can run the test dataset
+        if self.rank == 0:
+            if self.test_dataloader:
+                # TODO: Implement test_dataloader
+                raise NotImplementedError
 
-            # callback handler has access to trainer.batch
+    def train_epoch(self):
+        self.optimizer = self.optimizers[0]
+        self.scheduler = self.schedulers[0]
+
+        self.local_step_count = 0
+
+        for batch in self.train_dataloader:
             self.callback_handler.fire_event(Events.BATCH_BEGIN)
 
-            self.batch = move_to_device(self.batch, self.device)
-            self.batch_results = self.train_iter(self.batch)
+            batch = move_to_device(batch, self.device)
+            self.tmp_vars["log_dict"] = self.train_step(batch)
 
             # Update the model
-            if (self.global_step_count + 1) % self.config.training.optimization.gradient_accumulation_steps == 0:
+            if (self.global_step_count + 1) % self.gradient_accumulation_steps == 0:
                 self.callback_handler.fire_event(Events.STEP_BEGIN)
                 self.optimizer.step()
                 self.scheduler.step()
@@ -148,219 +210,145 @@ class Trainer:
 
             self.callback_handler.fire_event(Events.BATCH_END)
 
-            # Validation
-            if self.master:
-                if (self.global_step_count + 1) % self.config.training.validation_steps_interval == 0:
-                    if self.validation_loader:
+            # Only rank 0 can run the validation dataset
+            if self.rank == 0:
+                if (self.global_step_count + 1) % self.validation_steps_interval == 0:
+                    if not self.validation_dataloader is None:
+                        # BEGIN
                         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
-                        self.model.eval()
-                        self.validate_metrics = self.validate()
+
+                        self.tmp_vars["validate_metrics"] = self.validate()
+
                         self.callback_handler.fire_event(Events.VALIDATE_END)
                         self.model.train()
 
-            if not self.no_epoch_training and (self.local_step_count + 1) % self.num_training_batches == 0:
-                self.callback_handler.fire_event(Events.EPOCH_END)
-                self.epochs_trained += 1
-                self.local_step_count = 0
-            else:
-                self.local_step_count += 1
-
-            # Post
             self.global_step_count += 1
+            self.local_step_count += 1
 
-        self.callback_handler.fire_event(Events.TRAIN_END)
-        return {}
-
-    def train_iter(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Any]:
+    def train_step(self, batch):
+        self.optimizer = self.optimizers[0]
         results = self.model(batch)
         loss = results["loss"]
 
-        if self.config.training.optimization.gradient_accumulation_steps > 1:
-            loss = loss / self.config.training.optimization.gradient_accumulation_steps
+        if self.gradient_accumulation_steps > 1:
+            loss = loss / self.gradient_accumulation_steps
 
         self.callback_handler.fire_event(Events.BACKWARD_BEGIN)
-        if self.config.training.fp16:
+        self.loss_backward(loss)
+        self.callback_handler.fire_event(Events.BACKWARD_END)
+        # return the results
+
+        log_dict = {"loss": loss.item() * self.gradient_accumulation_steps}
+        log_dict["_lr"] = get_lr(self.optimizer)
+        return log_dict
+
+    def loss_backward(self, loss):
+        # Loss backward
+        if self.fp16:
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
             loss.backward()
-        self.callback_handler.fire_event(Events.BACKWARD_END)
-        return results
 
     def validate(self):
+        # Validation
         self.model.eval()
-        for batch in self.validation_loader:
-            # send to cuda device
-            batch = move_to_device(batch, self.device)
-            with torch.no_grad():
-                if self.config.training.num_gpus_per_node > 1:
+        # No gradient is needed for validation
+        with torch.no_grad():
+            for batch in self.validation_dataloader:
+                # send to cuda device
+                batch = move_to_device(batch, self.device)
+
+                if self.distributed_training:
                     self.model.module.predict(batch)
                 else:
                     self.model.predict(batch)
+        #END
         # get metrics
-        if self.config.training.num_gpus_per_node > 1:
+        if self.distributed_training:
             metrics = self.model.module.get_metrics(reset=True)
         else:
             metrics = self.model.get_metrics(reset=True)
         return metrics
 
-    def get_optimizer_parameters(self):
-        """
-        This function is used to set parameters with different weight decays
-        """
-        # default groups
-        no_decay = ["bias", "Norm"]
-        optimizer_grouped_parameters = [
-            {
-                "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.config.training.optimization.weight_decay,
-            },
-            {
-                "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
-                "weight_decay": 0.0
-            },
-        ]
-        return optimizer_grouped_parameters
-
-    def configure_optimizer(self) -> Optimizer:
-        optimizer_grouped_parameters = self.get_optimizer_parameters()
-        lr = self.config.training.optimization.learning_rate
-        optimizer_name = self.config.training.optimization.optimizer
-        max_gradient_norm = self.config.training.optimization.max_gradient_norm
-        betas = self.config.training.optimization.betas if self.config.training.optimization.betas else (0.9, 0.999)
-
-        if optimizer_name == "AdamW":
-            return torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
-        elif optimizer_name == "FusedAdam":
-            return apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=lr, betas=betas)
-        elif optimizer_name == "Adadelta":
-            return torch.optim.Adadelta(optimizer_grouped_parameters, lr=lr)
-        elif optimizer_name == "FusedLAMB":
-            if max_gradient_norm < 0:
-                max_gradient_norm = 1.0
-            else:
-                # avoid a second clip_grad_norm
-                self.config.training.optimization.max_gradient_norm = -1
-            return apex.optimizers.FusedLAMB(
-                optimizer_grouped_parameters, lr=lr, betas=betas, max_grad_norm=max_gradient_norm
-            )
+    def set_model_state(self, model_state_dict):
+        if self.distributed_training:
+            self.model.module.load_state_dict(model_state_dict)
         else:
-            raise NotImplementedError
+            self.model.load_state_dict(model_state_dict)
 
-    def configure_scheduler(self) -> LambdaLR:
-        scheduler_name = self.config.training.optimization.scheduler
-        warmup_steps = self.config.training.optimization.warmup.warmup_steps
-        warmup_cycle = self.config.traing.optimization.warmup.warmup_cosine_cycle
-
-        if scheduler_name == "Constant":
-            return ConstantLRSchedule(self.optimizer)
-        elif scheduler_name == "WarmupConstant":
-            return WarmupConstantSchedule(self.optimizer, warmup_steps)
-        elif scheduler_name == "WarmupLinear":
-            return WarmupLinearSchedule(self.optimizer, warmup_steps, self.total_num_update_steps)
-        elif scheduler_name == "WarmupCosine":
-            if warmup_cycle is None:
-                warmup_cycle = 0.5
-            return WarmupCosineSchedule(self.optimizer, warmup_steps, self.total_num_update_steps, cycles=warmup_cycle)
-        elif scheduler_name == "WarmupCosineWithHardRestartsSchedule":
-            if warmup_cycle is None:
-                warmup_cycle = 0.5
-
-            return WarmupCosineWithHardRestartsSchedule(
-                self.optimizer, warmup_steps, self.total_num_update_steps, cycles=warmup_cycle
-            )
+    def get_model_state(self):
+        if self.distributed_training:
+            return self.model.module.state_dict()
         else:
-            logger.error("Write your own version of `configure_scheduler`!")
-            raise NotImplementedError
+            return self.model.state_dict()
 
-    def state_dict(self):
+    def set_trainer_state(self, trainer_state_dict):
+        self.epochs_trained = trainer_state_dict["epochs_trained"]
+        self.global_step_count = trainer_state_dict["global_step_count"]
+        self.local_step_count = trainer_state_dict["local_step_count"]
+
+        # Resume the training state
+        if self.config.training.resume.resume:
+            # AMP State
+            if self.config.training.optimization.fp16:
+                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
+
+            # Scheduler States
+            if self.config.training.resume.resume_schedulers:
+                for idx, scheduler in enumerate(self.schedulers):
+                    try:
+                        scheduler.load_state_dict(trainer_state_dict["schedulers_state_dict"][idx])
+                    except:
+                        if self.rank == 0:
+                            logger.warning(f"Cannot Load Scheduler {idx}'s State!")
+
+            # Optimizer States - We cannot load optimizers here because of an amp error
+            # if self.config.training.resume.resume_optimizers:
+            #     for idx, optimizer in enumerate(self.optimizers):
+            #         try:
+            #             optimizer.load_state_dict(trainer_state_dict["optimizers_state_dict"][idx])
+            #         except:
+            #             if self.rank == 0:
+            #                 logger.warning(f"Cannot Load Optimizer {idx}'s State!")
+
+            # Random States
+            if self.config.training.resume.resume_rng_state:
+                torch.set_rng_state(trainer_state_dict["cpu_rng_state"])
+                trainer_state_dict["cuda_rng_state"] = trainer_state_dict["cuda_rng_state"][:torch.cuda.device_count()]
+                torch.cuda.set_rng_state_all(trainer_state_dict["cuda_rng_state"])
+
+            # All Callbacks
+            for callback in self.callback_handler.callbacks:
+                try:
+                    callback.load_state_dict(trainer_state_dict[str(type(callback))])
+                except:
+                    logger.error(f"{type(callback)} seems not to exist!")
+
+    def get_trainer_state(self):
         trainer_state_dict = {
-            "epoch": self.epochs_trained,
-            "global_update_count": self.global_step_count,
-            "local_update_count": self.local_step_count,
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "scheduler_state_dict": self.scheduler.state_dict(),
+            "epochs_trained": self.epochs_trained + 1,
+            "global_step_count": self.global_step_count,
+            "local_step_count": self.local_step_count,
+            "optimizers_state_dict": [optimizer.state_dict() for optimizer in self.optimizers],
+            "schedulers_state_dict": [scheduler.state_dict() for scheduler in self.schedulers],
             "cpu_rng_state": torch.get_rng_state(),
             "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }
         # save amp states
         if self.config.training.optimization.fp16:
             trainer_state_dict["amp_state_dict"] = amp.state_dict()
+
+        # All Callbacks
+        for callback in self.callback_handler.callbacks:
+            trainer_state_dict[str(type(callback))] = callback.state_dict()
+
         return trainer_state_dict
 
-    def load_trainer_counts(self, trainer_state_dict: Dict[str, Any]):
-        self.epochs_trained = trainer_state_dict["epoch"]
-        self.global_step_count = trainer_state_dict["global_update_count"]
-        self.local_step_count = trainer_state_dict["local_update_count"]
-
-    def model_state_dict(self):
-        if "DistributedDataParallel" in str(type(self.model)):
-            return self.model.module.state_dict()
-        else:
-            return self.model.state_dict()
-
-    def load_model_state_dict(self, model_state_dict: Dict[str, Any]):
-        try:
-            if "DistributedDataParallel" in str(type(self.model)):
-                self.model.module.load_state_dict(model_state_dict)
-            else:
-                self.model.load_state_dict(model_state_dict)
-        except:
-            logger.warning("Cannot restore model state!")
-
-    def load_state_dict(self, trainer_state_dict: Dict[str, Any]):
-        self.epochs_trained = trainer_state_dict["epoch"]
-        self.global_step_count = trainer_state_dict["global_update_count"]
-        self.local_step_count = trainer_state_dict["local_update_count"]
-
-        try:
-            self.scheduler.load_state_dict(trainer_state_dict["scheduler_state_dict"])
-        except:
-            logger.warning("Cannot restore scheduler state!")
-
-        try:
-            # cpu random state
-            torch.set_rng_state(trainer_state_dict["cpu_rng_state"])
-        except:
-            logger.warning("Cannot restore CPU random state!")
-
-        try:
-            # sometimes we have less number of devices
-            trainer_state_dict["cuda_rng_state"] = trainer_state_dict["cuda_rng_state"][:torch.cuda.device_count()]
-            torch.cuda.set_rng_state_all(trainer_state_dict["cuda_rng_state"])
-        except (IndexError, RuntimeError):
-            # if we still cannot load back cuda rng_states, we ignore it
-            logger.warning("Cannot restore CUDA random state!")
-
-        try:
-            # restore amp states
-            if self.config.training.fp16:
-                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
-        except:
-            logger.warning("Cannot restore AMP state!")
-
-    def load_amp_state_dict(self, trainer_state_dict):
-        try:
-            # restore amp state dict
-            if self.config.training.fp16:
-                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
-        except:
-            logger.warning("Cannot restore AMP state!")
+    def add_callback(self, callback: Callback):
+        self.callback_handler.add_callback(callback)
 
 
-    def __del__(self):
-        if self.config.training.num_gpus_per_node > 1:
-            for p in self._spawn_context.processes:
-                p.kill()
-
-# def set_random_port(self):
-#     """
-#     When running DDP NOT managed by SLURM, the ports might collide
-#     :return:
-#     """
-#     try:
-#         default_port = os.environ['MASTER_PORT']
-#     except Exception:
-#         import random
-#         default_port = random.randint(20000, 29000)
-#         os.environ['MASTER_PORT'] = str(default_port)
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']

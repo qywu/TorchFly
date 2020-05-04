@@ -22,11 +22,13 @@ class Checkpointer:
     def __init__(
         self,
         sync_every_save: bool = True,
+        async_save=False,
         num_checkpoints_to_keep: int = 1000,
         keep_checkpoint_every_num_seconds: float = 3600,
         storage_dir: str = "Checkpoints"
     ):
         self.sync_every_save = sync_every_save
+        self.async_save = async_save
         self.num_checkpoints_to_keep = num_checkpoints_to_keep
         self.keep_checkpoint_every_num_seconds = keep_checkpoint_every_num_seconds
         self.storage_dir = storage_dir
@@ -43,9 +45,9 @@ class Checkpointer:
             states: A dictionary to store all necessary information for later restoring
         """
         # synchronize background tasks
-        if self.sync_every_save:
-            for ray_obj in self.background_tasks:
-                torchfly.check_async_status(ray_obj)
+        if self.sync_every_save and self.async_save:
+            for process in self.background_tasks:
+                torchfly.async_wait(process)
                 logger.debug("Waiting for history job to finish!")
             self.background_tasks = []
 
@@ -58,10 +60,14 @@ class Checkpointer:
             trainer_state_dict["checkpointer_state_dict"] = self.state_dict()
 
             # save the states
-            ray_obj1 = torchfly.async_save(model_state_dict, model_state_path)
-            ray_obj2 = torchfly.async_save(trainer_state_dict, trainer_state_path)
-            self.background_tasks.append(ray_obj1)
-            self.background_tasks.append(ray_obj2)
+            if self.async_save:
+                process1 = torchfly.async_save(model_state_dict, model_state_path)
+                process2 = torchfly.async_save(trainer_state_dict, trainer_state_path)
+                self.background_tasks.append(process1)
+                self.background_tasks.append(process2)
+            else:
+                torchfly.async_save(model_state_dict, model_state_path)
+                torchfly.async_save(trainer_state_dict, trainer_state_path)
 
             if len(self._saved_checkpoint_paths) > self.num_checkpoints_to_keep:
                 for _ in range(len(self._saved_checkpoint_paths) - self.num_checkpoints_to_keep):
