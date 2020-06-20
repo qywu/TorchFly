@@ -134,6 +134,7 @@ class TrainerLoop:
 
         # Configure optimizers
         self.optimizers, self.schedulers = self.model.configure_optimizers(self.total_num_update_steps)
+        self.optimizers, self.schedulers = self.configure_optimizers()
 
         # Model is sent to GPU or CPU
         self.model = move_to_device(self.model, self.device)
@@ -144,6 +145,9 @@ class TrainerLoop:
 
         self.tmp_vars = {}
         self.callback_handler.fire_event(Events.INITIALIZE)
+
+    def configure_optimizers(self):
+        return self.model.configure_optimizers(self.total_num_update_steps)
 
     def configure_callbacks(self):
         # Callback
@@ -214,6 +218,7 @@ class TrainerLoop:
             if self.rank == 0:
                 if (self.global_step_count + 1) % self.validation_steps_interval == 0:
                     if not self.validation_dataloader is None:
+                        self.model.eval()
                         # BEGIN
                         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
 
@@ -221,6 +226,9 @@ class TrainerLoop:
 
                         self.callback_handler.fire_event(Events.VALIDATE_END)
                         self.model.train()
+
+            if self.global_step_count >= self.total_num_steps == 0:
+                break
 
             self.global_step_count += 1
             self.local_step_count += 1

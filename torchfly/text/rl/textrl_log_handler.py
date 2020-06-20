@@ -45,7 +45,7 @@ class TextRLLogHandler(Callback):
         self.rank, _ = get_rank()
         self.cumulative_time = 0.0
 
-        self.history_log_dict = collections.defaultdict(lambda: None)
+        self.history_log_dict = {}
         self.smooth_coef = 0.95
 
         # Log in seconds or steps
@@ -129,6 +129,25 @@ class TextRLLogHandler(Callback):
                 if (trainer.global_step_count + 1) % self.config.training.logging.steps_interval == 0:
                     self.log(trainer, trainer.tmp_vars["log_dict"])
 
+    @handle_event(Events.VALIDATE_BEGIN)
+    def info_valid_begin(self, trainer: Trainer):
+        if self.rank == 0:
+            logger.info(f"Steps {trainer.global_step_count}: Validation Begins:")
+
+    @handle_event(Events.VALIDATE_END)
+    def show_metrics(self, trainer: Trainer):
+        if self.rank == 0:
+            for metric_name, value in trainer.tmp_vars["validate_metrics"].items():
+                metric_name = metric_name[0].upper() + metric_name[1:]
+                if not self.training_in_epoch:
+                    logger.info(f"Steps {trainer.global_step_count}: Validation {metric_name} {value:4.4f}")
+                else:
+                    logger.info(f"Epoch {trainer.epochs_trained + 1}: Validation {metric_name} {value:4.4f}")
+
+                # tensorboard
+                if isinstance(value, float):
+                    self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
+
     def log(self, trainer: Trainer, log_dict: Dict[str, float]):
         """
         Args:
@@ -141,7 +160,7 @@ class TextRLLogHandler(Callback):
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
 
-        speed = elapsed_steps * self.config.training.batch_size * self.config.training.num_gpus_per_node / iter_elapsed_time
+        speed = elapsed_steps * trainer.ppo_buffer_size * self.config.training.num_gpus_per_node / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
         if not self.training_in_epoch:
@@ -156,10 +175,10 @@ class TextRLLogHandler(Callback):
 
         # Smooth values in the log_dict
         for key, value in log_dict.items():
-            if self.history_log_dict[key]:
+            if key in self.history_log_dict:
                 if not isinstance(self.history_log_dict[key], float):
-                    logger.error(f"{key} is not a float")
-                    raise NotImplementedError(f"{key} is not a float")
+                    logger.error(f"{key} is not a float. Only float can be logged!")
+                    raise NotImplementedError(f"{key} is not a float. Only float can be logged!")
                 self.history_log_dict[key
                                      ] = self.history_log_dict[key] * self.smooth_coef + value * (1 - self.smooth_coef)
             else:

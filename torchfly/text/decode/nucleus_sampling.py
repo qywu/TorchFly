@@ -35,7 +35,7 @@ import torch.nn.functional as F
     
 #     return logits
 
-def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("Inf"), min_tokens_to_keep=1, is_log_probs=False):
+def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-1e4, min_tokens_to_keep=1, is_log_probs=False):
     """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
         Args:
             logits: logits distribution shape (batch size, vocabulary size)

@@ -43,7 +43,7 @@ class FlyModule(nn.Module):
         ]
         return optimizer_grouped_parameters
 
-    def configure_optimizers(self, total_num_update_steps) -> [List[Iterator], List[Iterator]]:
+    def configure_optimizers(self, total_num_update_steps)  -> [List, List]:
         optimizer_grouped_parameters = self.get_optimizer_parameters()
         lr = self.config.training.optimization.learning_rate
         optimizer_name = self.config.training.optimization.optimizer_name

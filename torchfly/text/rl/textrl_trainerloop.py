@@ -22,11 +22,11 @@ class TextRLTrainerLoop(TrainerLoop):
     """
     On Policy Text RL Trainer
     """
-    def __init__(self, config, reward_func, decoder, collator, *args, **kwargs):
+    def __init__(self, config, reward_func, decoder, collate_fn, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.reward_func = reward_func
         self.decoder = decoder
-        self.collator = collator
+        self.collate_fn = collate_fn
 
         self.pad_token_id = self.decoder._tokenizer.pad_token_id
         self.ppo_buffer_size = self.config.text_ppo.ppo_buffer_size
@@ -47,6 +47,17 @@ class TextRLTrainerLoop(TrainerLoop):
             raise ValueError(
                 "Does not support epoch training! Please set config.training.total_num.num_steps bigger than 0."
             )
+            
+        if self.collate_fn is None:
+            # Maybe it is defined in the train_dataloader
+            self.collate_fn = self.train_dataloader.dataset.collate_fn
+
+    def configure_optimizers(self):
+        # The model will update multiple times in each update step
+        # So we need to adjust the scheduler
+        update_steps_multiplier = self.ppo_buffer_size // self.ppo_mini_batch_size 
+        return self.model.configure_optimizers(self.total_num_update_steps * update_steps_multiplier)
+        
 
     def configure_callbacks(self):
         # Callback
@@ -90,7 +101,7 @@ class TextRLTrainerLoop(TrainerLoop):
                 for i in range(len(states)):
                     states[i]["target_token_ids"] = actions[i]
 
-                ppo_batch = self.collator.sample_collate(states)
+                ppo_batch = self.collate_fn(states)
                 ppo_batch["normalized_rewards"] = torch.LongTensor(normalized_rewards)
                 ppo_batch["old_log_probs"] = torch.FloatTensor(action_log_probs)
 
@@ -167,7 +178,7 @@ class TextRLTrainerLoop(TrainerLoop):
             human_demos_batch = batch[i:i + actual_sample_size]
 
             # collect human demos log probs
-            human_demos_batch_collated = self.collator.sample_collate(human_demos_batch)
+            human_demos_batch_collated = self.collate_fn(human_demos_batch)
             human_demos_batch_collated = move_to_device(human_demos_batch_collated, self.device)
             log_probs = self.model.compute_log_probs(human_demos_batch_collated)["log_probs"]
             human_log_probs = log_probs.tolist()
@@ -187,7 +198,7 @@ class TextRLTrainerLoop(TrainerLoop):
             else:
                 results = {}
                 results["tokens"] = human_tokens
-                rewards = self.reward_func(human_demos_batch_collated, results, is_human_demo=True)
+                rewards = self.reward_func(human_demos_batch_collated, results)
                 self.replay_buffer.update_batch(
                     states=human_demos_batch, actions=human_tokens, action_log_probs=human_log_probs, rewards=rewards
                 )
@@ -196,7 +207,7 @@ class TextRLTrainerLoop(TrainerLoop):
         actual_sample_size = min(len(batch) - num_human_demos, self.sample_batch_size)
         for i in range(num_human_demos, len(batch), actual_sample_size):
             sample_batch = batch[i:i + actual_sample_size]
-            sample_batch_collated = self.collator.sample_collate(sample_batch)
+            sample_batch_collated = self.collate_fn(sample_batch)
             sample_batch_collated = move_to_device(sample_batch_collated, self.device)
             results = self.decoder_generate(sample_batch_collated)
 
@@ -214,7 +225,7 @@ class TextRLTrainerLoop(TrainerLoop):
             else:
                 results["log_probs"] = [item[0] for item in results["log_probs"]]
 
-            rewards = self.reward_func(sample_batch_collated, results, is_human_demo=False)
+            rewards = self.reward_func(sample_batch_collated, results)
 
             self.replay_buffer.update_batch(
                 states=sample_batch, actions=results["tokens"], action_log_probs=results["log_probs"], rewards=rewards

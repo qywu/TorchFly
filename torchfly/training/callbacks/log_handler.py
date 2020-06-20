@@ -72,7 +72,7 @@ class LogHandler(Callback):
         self.rank, _ = get_rank()
         self.cumulative_time = 0.0
 
-        self.history_log_dict = collections.defaultdict(lambda: None)
+        self.history_log_dict = {}
         self.smooth_coef = 0.95
 
         # Log in seconds or steps
@@ -172,6 +172,11 @@ class LogHandler(Callback):
             self.tensorboard.close()
             logger.info("Training Finishes!")
 
+    @handle_event(Events.VALIDATE_BEGIN)
+    def info_valid_begin(self, trainer: Trainer):
+        if self.rank == 0:
+            logger.info(f"Steps {trainer.global_step_count}: Validation Begins:")
+
     @handle_event(Events.VALIDATE_END)
     def show_metrics(self, trainer: Trainer):
         if self.rank == 0:
@@ -217,7 +222,7 @@ class LogHandler(Callback):
 
         # Smooth values in the log_dict
         for key, value in log_dict.items():
-            if self.history_log_dict[key]:
+            if key in self.history_log_dict:
                 if not isinstance(self.history_log_dict[key], float):
                     logger.error(f"{key} is not a float")
                     raise NotImplementedError(f"{key} is not a float")

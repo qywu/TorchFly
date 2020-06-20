@@ -52,7 +52,7 @@ class TransformerDecoder:
         decode_config.num_return_sequences = decode_config.num_return_sequences if decode_config.num_return_sequences is not None else 1
 
         decode_config.bos_token_ids = decode_config.bos_token_ids if decode_config.bos_token_ids is not None else None
-        decode_config.eos_token_ids = decode_config.eos_token_ids if decode_config.eos_token_ids is not None else -1
+        decode_config.eos_token_ids = decode_config.eos_token_ids if decode_config.eos_token_ids is not None else [-1]
 
         decode_config.output_log_probs = decode_config.output_log_probs if decode_config.output_log_probs is not None else False
 
@@ -75,9 +75,9 @@ class TransformerDecoder:
            This function should output a key word args as the inputs for the generator
         """
         model_inputs = {}
-        self.bos_token_ids = torch.LongTensor(self.bos_token_ids)
 
         if input_ids is None:
+            self.bos_token_ids = torch.LongTensor(self.bos_token_ids)
             model_inputs["input_ids"] = self.bos_token_ids.unsqueeze(0).expand(input_ids.shape[0], -1)
             model_inputs["past"] = None
         else:
@@ -124,7 +124,7 @@ class TransformerDecoder:
     ) -> Dict[str, torch.Tensor]:
         # Sample the next token
         if self.do_sample:
-            logits = top_k_top_p_filtering(logits, top_k=self.top_k, top_p=self.top_p)
+            logits = top_k_top_p_filtering(logits, top_k=self.top_k, top_p=self.top_p, min_tokens_to_keep=2)
             # Sample
             # TODO: Test numpy.random.multinomial
             probs = torch.softmax(logits, -1)
@@ -180,8 +180,10 @@ class TransformerDecoder:
         assert len(input_ids.shape) == 2
         batch_size = input_ids.shape[0]
         
-        self.eos_token_ids = torch.LongTensor(self.eos_token_ids)
-        self.bos_token_ids = torch.LongTensor(self.bos_token_ids)
+        if self.eos_token_ids is not None:
+            self.eos_token_ids = torch.LongTensor(self.eos_token_ids)
+        if self.bos_token_ids is not None:
+            self.bos_token_ids = torch.LongTensor(self.bos_token_ids)
 
         # current position and vocab size
         seq_len = input_ids.shape[1]

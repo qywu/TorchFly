@@ -27,8 +27,9 @@ class TextRLReplayBuffer:
             batch_momentum = self.momentum**len(rewards)
             self.reward_mean = self.reward_mean * batch_momentum + np.mean(rewards) * (1 - batch_momentum)
             self.reward_mean_sq = self.reward_mean_sq * batch_momentum + np.mean(rewards**2) * (1 - batch_momentum)
-            self.reward_std = (self.reward_mean_sq - self.reward_mean**2)**0.5
-            normalized_rewards = (rewards - self.reward_mean) / self.reward_std
+            self.reward_std = np.abs(self.reward_mean_sq - self.reward_mean**2)**0.5
+            normalized_rewards = (rewards - self.reward_mean) / (self.reward_std + 1e-5)
+            normalized_rewards = np.clip(normalized_rewards, -2.0, 2.0)
         else:
             normalized_rewards = rewards
 
@@ -38,8 +39,9 @@ class TextRLReplayBuffer:
         if normalize_reward:
             self.reward_mean = self.reward_mean * self.momentum + reward * (1 - self.momentum)
             self.reward_mean_sq = self.reward_mean_sq * self.momentum + (reward**2) * (1 - self.momentum)
-            self.reward_std = (self.reward_mean_sq - self.reward_mean**2)**0.5
-            normalized_reward = (reward - self.reward_mean) / self.reward_std
+            self.reward_std = np.abs(self.reward_mean_sq - self.reward_mean**2)**0.5
+            normalized_reward = (reward - self.reward_mean) / (self.reward_std + 1e-5)
+            normalized_reward = np.clip(normalized_reward, -2.0, 2.0)
         else:
             normalize_reward = reward
 

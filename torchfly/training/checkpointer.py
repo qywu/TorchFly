@@ -66,8 +66,8 @@ class Checkpointer:
                 self.background_tasks.append(process1)
                 self.background_tasks.append(process2)
             else:
-                torchfly.async_save(model_state_dict, model_state_path)
-                torchfly.async_save(trainer_state_dict, trainer_state_path)
+                torch.save(model_state_dict, model_state_path)
+                torch.save(trainer_state_dict, trainer_state_path)
 
             if len(self._saved_checkpoint_paths) > self.num_checkpoints_to_keep:
                 for _ in range(len(self._saved_checkpoint_paths) - self.num_checkpoints_to_keep):

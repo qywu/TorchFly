@@ -1,6 +1,5 @@
 import os
 import sys
-import ray
 import time
 import torch
 import random
@@ -109,13 +108,13 @@ class TrainHandler(Callback):
             if not trainer.no_epoch_training:
                 self.config.training.validation_steps_interval = num_training_batches - 1
 
-    @handle_event(Events.TRAIN_BEGIN, priority=180)
-    def configure_ray(self, trainer: Trainer):
-        # Ray Initialize
-        if trainer.master:
-            # close existing logging
-            if not ray.is_initialized():
-                logger.info(ray.init())
+    # @handle_event(Events.TRAIN_BEGIN, priority=180)
+    # def configure_ray(self, trainer: Trainer):
+    #     # Ray Initialize
+    #     if trainer.master:
+    #         # close existing logging
+    #         if not ray.is_initialized():
+    #             logger.info(ray.init())
 
     @handle_event(Events.TRAIN_BEGIN, priority=150)
     def setup_model(self, trainer: Trainer):

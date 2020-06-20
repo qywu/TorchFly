@@ -1,4 +1,3 @@
-import ray
 import torch
 from torch.multiprocessing import Process
 import numpy as np

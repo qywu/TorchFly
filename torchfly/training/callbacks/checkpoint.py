@@ -105,7 +105,7 @@ class Checkpoint(Callback):
         if self.restored_states:
             if not self.fix_amp_bug:
                 # We load the optimizer's states here
-                if self.config.training.resume.resume_optimizers:
+                if self.config.training.resume.resume and self.config.training.resume.resume_optimizers:
                     for idx, optimizer in enumerate(trainer.optimizers):
                         try:
                             optimizer.load_state_dict(self.restored_states[1]["optimizers_state_dict"][idx])
