@@ -4,6 +4,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
+# pylint: disable=no-member
+
 
 class Seq2SeqDataset(Dataset):
     """
@@ -30,7 +32,7 @@ class Seq2SeqDataset(Dataset):
             target_token_ids.append(self.tokenizer.eos_token_id)
 
         returned_item = {}
-        returned_item["source_token_ids"] = torch.LongTensor(source_token_ids)        
+        returned_item["source_token_ids"] = torch.LongTensor(source_token_ids)
         returned_item["target_token_ids"] = torch.LongTensor(target_token_ids)
         returned_item["source_text"] = item["source"]
         returned_item["target_text"] = item["target"]
@@ -50,5 +52,3 @@ class Seq2SeqDataset(Dataset):
             [item["target_token_ids"] for item in batch], batch_first=True, padding_value=self.tokenizer.pad_token_id
         )
         return new_batch
-
-

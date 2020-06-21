@@ -14,7 +14,7 @@ from apex.parallel import DistributedDataParallel, Reducer
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
 from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint
 from torchfly.common import move_to_device
-from torchfly.training import FlyModule
+from torchfly.training import FlyModel
 
 import logging
 
@@ -46,17 +46,19 @@ class TrainerLoop:
     def __init__(
         self,
         config: DictConfig,
-        model: FlyModule,
+        model: FlyModel,
         train_dataloader_fn: Callable,
         valid_dataloader_fn: Callable = None,
         test_dataloader_fn: Callable = None
     ):
         """
         Args:
-            config: hydra configureation dictionary
-            model: must be FlyModule
+            config: FlyConfig dictionary
+            model: must be FlyModel
             dataloader_fn: a Callable function which returns dataloaders
         """
+        assert isinstance(model, FlyModel)
+
         self.config = config
         self.rank, self.local_rank = get_rank()
 

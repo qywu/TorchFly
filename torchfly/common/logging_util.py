@@ -1,7 +1,5 @@
 import os
 import sys
-import hydra
-import hydra.utils
 import logging
 import colorlog
 from omegaconf import DictConfig

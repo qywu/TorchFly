@@ -10,9 +10,7 @@ dependencies:
   - pip:
     - ray
     - regex
-    - transformers==2.5.1
-    - hydra-core
-    - hydra-colorlog
+    - transformers
     - colorlog
     - tensorboard
     - tqdm

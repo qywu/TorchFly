@@ -1,5 +1,9 @@
 site_name: TorchFly
 nav:
     - Home: index.md
+    - Training:
+        - Callbacks: callback_priority.md
+    - Test:
+        - Callbacks: callback_priority.md
     - About: about.md
 theme: readthedocs

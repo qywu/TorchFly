@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class FlyModule(nn.Module):
+class FlyModel(nn.Module):
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = config

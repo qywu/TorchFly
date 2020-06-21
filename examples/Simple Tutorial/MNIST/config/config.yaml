@@ -1,7 +1,0 @@
-hydra:
-    run: # specify the working directory
-      dir: ./outputs/exp1 # ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S} #./outputs/exp1 # 
-defaults:
-    - hydra/job_logging: colorlog
-    - hydra/hydra_logging: colorlog
-    - training: default
