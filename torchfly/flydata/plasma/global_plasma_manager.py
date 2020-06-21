@@ -4,6 +4,7 @@ import subprocess
 import psutil
 import shutil
 import atexit
+import hashlib
 import pyarrow as pa
 import pyarrow.plasma as plasma
 from omegaconf import OmegaConf
@@ -30,7 +31,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
             self.plasma_store_name = config.plasma_store_name
             self.use_mem_percent = config.use_mem_percent
         else:
-            self.plasma_store_name = "plasma"
+            self.plasma_store_name = None
             self.use_mem_percent = 0.30
 
         self.connected = False
@@ -57,19 +58,23 @@ class GlobalPlasmaManager(metaclass=Singleton):
             memory = psutil.virtual_memory()
             plasma_store_memory = int(memory.available * self.use_mem_percent)
 
-            self.plasma_store_path, self.plasma_store_proc = _start_plasma_store(
+            self.plasma_store_name, self.plasma_store_path, self.plasma_store_proc = _start_plasma_store(
                 plasma_store_memory, plasma_store_name
             )
 
             self.connected = True
             logger.info(
                 f"Initializing Plasma with {plasma_store_memory // 1e9} GB Memory\n"
-                f"    Plasma Location on {plasma_store_name}"
+                f"    Plasma Location on {self.plasma_store_name}"
             )
             self.client = plasma.connect(self.plasma_store_path)
         else:
+            #  init plasma name
+            if plasma_store_name is None:
+                self.plasma_store_name = _hash(os.getcwd())
+
             # assume plasma server is running
-            self.plasma_store_path = f"/tmp/torchfly/{plasma_store_name}-{hash(os.getcwd())}/plasma.sock"
+            self.plasma_store_path = f"/tmp/torchfly/plasma/{self.plasma_store_name}/plasma.sock"
             local_rank = os.environ["LOCAL_RANK"]
             logger.info(f"Plasma Store on {local_rank} is connected!")
             self.client = plasma.connect(self.plasma_store_path)
@@ -95,9 +100,13 @@ class GlobalPlasmaManager(metaclass=Singleton):
             self.connected = False
 
 
+def _hash(x: str):
+    return hashlib.md5(x.encode("utf-8")).hexdigest()[:6]
+
+
 def _start_plasma_store(
     plasma_store_memory: int,
-    plasma_store_name: str = "plasma",
+    plasma_store_name: str = None,
     use_valgrind: bool = False,
     use_profiler: bool = False,
     use_hugepages: bool = False,
@@ -119,7 +128,10 @@ def _start_plasma_store(
         raise Exception("Cannot use valgrind and profiler at the same time.")
 
     # datetime.datetime.now().strftime("torchfly/session_%Y-%m-%d_%H-%M-%S_%s"
-    stamp = f"/tmp/torchfly/{plasma_store_name}-{hash(os.getcwd())}"
+    if plasma_store_name is None:
+        plasma_store_name = _hash(os.getcwd())
+
+    stamp = f"/tmp/torchfly/plasma/{plasma_store_name}"
     os.makedirs(stamp, exist_ok=True)
 
     plasma_store_path = os.path.join(stamp, 'plasma.sock')
@@ -149,7 +161,7 @@ def _start_plasma_store(
     if rc is not None:
         raise RuntimeError("plasma_store exited unexpectedly with " "code %d" % (rc, ))
 
-    return plasma_store_path, proc
+    return plasma_store_name, plasma_store_path, proc
 
 
 # def get_plasma_manager() -> PlasmaManager:
