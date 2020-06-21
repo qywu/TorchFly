@@ -9,7 +9,7 @@
   
   
   <link rel="shortcut icon" href="../img/favicon.ico">
-  <title>About - TorchFly</title>
+  <title>Callbacks - TorchFly</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700" />
 
   <link rel="stylesheet" href="../css/theme.css" />
@@ -18,8 +18,8 @@
   
   <script>
     // Current page data
-    var mkdocs_page_name = "About";
-    var mkdocs_page_input_path = "about.md";
+    var mkdocs_page_name = "Callbacks";
+    var mkdocs_page_input_path = "callback_priority.md";
     var mkdocs_page_url = null;
   </script>
   
@@ -52,14 +52,18 @@
                     </li>
                 </ul>
                 <p class="caption"><span class="caption-text">Training</span></p>
-                <ul>
-                    <li class="toctree-l1"><a class="reference internal" href="../callback_priority/">Callbacks</a>
+                <ul class="current">
+                    <li class="toctree-l1 current"><a class="reference internal current" href="./">Callbacks</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#priority-range-standard">Priority Range Standard</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#default-callbacks-priorities">Default Callbacks Priorities</a>
+    </li>
+    </ul>
                     </li>
                 </ul>
-                <ul class="current">
-                    <li class="toctree-l1 current"><a class="reference internal current" href="./">About</a>
-    <ul class="current">
-    </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="../about/">About</a>
                     </li>
                 </ul>
       </div>
@@ -82,8 +86,12 @@
     <li><a href="..">Docs</a> &raquo;</li>
     
       
+        
+          <li>Training &raquo;</li>
+        
+      
     
-    <li>About</li>
+    <li>Callbacks</li>
     <li class="wy-breadcrumbs-aside">
       
     </li>
@@ -94,7 +102,100 @@
           <div role="main">
             <div class="section">
               
-                <h1 id="torchfly">TorchFly</h1>
+                <h1 id="callbacks">Callbacks</h1>
+<p>There are totally 14 different callback locations defined in <a href="https://github.com/qywu/TorchFly/blob/master/torchfly/training/callbacks/events.py">events.py</a>.</p>
+<p>It is important to set the priorities for each callback to ensure the correct order of execution. Also, we need to make a standard for the priorities for clarity.</p>
+<h2 id="priority-range-standard">Priority Range Standard</h2>
+<p>We first define the range of priorities that can be used:</p>
+<ul>
+<li>System Level Priority: 100 - 200</li>
+<li>User Level Priority: 0 - 100</li>
+</ul>
+<h2 id="default-callbacks-priorities">Default Callbacks Priorities</h2>
+<table>
+<thead>
+<tr>
+<th>Events.INITIALIZE</th>
+<th>priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>checkpoint.setup_checkpointer</td>
+<td>199</td>
+</tr>
+<tr>
+<td>checkpoint.search_checkpointer</td>
+<td>195</td>
+</tr>
+<tr>
+<td>logging.report_init_config</td>
+<td>100</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Events.TRAIN_BEGIN</th>
+<th>priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>train.configure_distributed</td>
+<td>199</td>
+</tr>
+<tr>
+<td>logging.setup_logging</td>
+<td>195</td>
+</tr>
+<tr>
+<td>train.configure_optimizer</td>
+<td>190</td>
+</tr>
+<tr>
+<td>train.configure_ray</td>
+<td>180</td>
+</tr>
+<tr>
+<td>train.configure_dataloader</td>
+<td>175</td>
+</tr>
+<tr>
+<td>checkpoint.load_trainer_counts</td>
+<td>170</td>
+</tr>
+<tr>
+<td>train.configure_variables</td>
+<td>165</td>
+</tr>
+<tr>
+<td>checkpoint.setup_saving_variables</td>
+<td>160</td>
+</tr>
+<tr>
+<td>logging.setup_timer</td>
+<td>155</td>
+</tr>
+<tr>
+<td>train.setup_model</td>
+<td>150</td>
+</tr>
+<tr>
+<td>train.configure_scheduler</td>
+<td>145</td>
+</tr>
+<tr>
+<td>logging.setup_tensorboard</td>
+<td>140</td>
+</tr>
+<tr>
+<td>checkpoint.load_states</td>
+<td>130</td>
+</tr>
+</tbody>
+</table>
               
             </div>
           </div>
@@ -102,8 +203,10 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
+        <a href="../about/" class="btn btn-neutral float-right" title="About">Next <span class="icon icon-circle-arrow-right"></span></a>
       
-        <a href="../callback_priority/" class="btn btn-neutral" title="Callbacks"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+      
+        <a href=".." class="btn btn-neutral" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
       
     </div>
   
@@ -129,8 +232,10 @@
     <span class="rst-current-version" data-toggle="rst-current-version">
       
       
-        <span><a href="../callback_priority/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+        <span><a href=".." style="color: #fcfcfc;">&laquo; Previous</a></span>
       
+      
+        <span style="margin-left: 15px"><a href="../about/" style="color: #fcfcfc">Next &raquo;</a></span>
       
     </span>
 </div>
