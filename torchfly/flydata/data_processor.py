@@ -9,7 +9,7 @@ class DataProcessor:
     This is the one which needs to be implemented
     """
     def __init__(self):
-        self.rank = os.environ["LOCAL_RANK"] if "LOCAL_RANK" in os.environ else 0
+        self.rank = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else 0
 
     def __call__(self, item):
         return self.process(item)

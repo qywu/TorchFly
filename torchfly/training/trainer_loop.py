@@ -113,7 +113,6 @@ class TrainerLoop:
                 logger.error("Cannot get the length of train dtrainer.model")
                 raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_update_steps`!")
         else:
-            self.num_training_steps_in_epoch = self.total_num_update_steps
             self.epoch_num_training_steps = self.total_num_update_steps
 
         # Validation steps interval
@@ -179,11 +178,20 @@ class TrainerLoop:
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
 
-        for _ in range(self.epochs_trained, self.total_num_epochs):
+        while True:
             self.callback_handler.fire_event(Events.EPOCH_BEGIN)
             self.train_epoch()
             self.callback_handler.fire_event(Events.EPOCH_END)
             self.epochs_trained += 1
+
+            if self.training_in_epoch:
+                if self.epochs_trained >= self.total_num_epochs:
+                    break
+            else:
+                if self.global_step_count < self.total_num_steps:
+                    continue
+                else:
+                    break
 
         # Training ends
         self.callback_handler.fire_event(Events.TRAIN_END)
@@ -229,7 +237,7 @@ class TrainerLoop:
                         self.callback_handler.fire_event(Events.VALIDATE_END)
                         self.model.train()
 
-            if self.global_step_count >= self.total_num_steps == 0:
+            if self.global_step_count >= self.total_num_steps:
                 break
 
             self.global_step_count += 1
@@ -273,7 +281,7 @@ class TrainerLoop:
                     self.model.module.predict(batch)
                 else:
                     self.model.predict(batch)
-        #END
+        # END
         # get metrics
         if self.distributed_training:
             metrics = self.model.module.get_metrics(reset=True)

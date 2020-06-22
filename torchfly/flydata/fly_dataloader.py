@@ -1,4 +1,7 @@
 import os
+import sys
+import signal
+import logging
 import tqdm
 import datetime
 import torch
@@ -13,7 +16,7 @@ from omegaconf import OmegaConf
 import pyarrow.plasma as plasma
 from pyarrow.plasma import PlasmaObjectExists
 import queue
-import logging
+
 from typing import Any, Iterator
 
 from .data_processor import DataProcessor
@@ -22,7 +25,6 @@ from .plasma import GlobalPlasmaManager
 logger = logging.getLogger(__name__)
 
 # pylint:disable=no-member
-
 
 def set_random_seed(random_seed):
     random.seed(random_seed)
@@ -142,8 +144,8 @@ class FlyDataLoader:
         config: OmegaConf,
         dataset: IterableDataset,
         processor: DataProcessor = None,
-        drop_last=False,
         collate_fn=None,
+        post_process_fn=None,
     ):
         """
         Args:
@@ -151,13 +153,14 @@ class FlyDataLoader:
         self.config = config
         self.dataset = dataset
         self.processor = processor
-        self.rank = os.environ["LOCAL_RANK"] if "LOCAL_RANK" in os.environ else 0
+        self.post_process_fn = post_process_fn
+        self.rank = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else 0
 
         self.batch_size = config.dataloader.batch_size
         self.sync_output = config.dataloader.sync_output
 
         self.timeout = config.dataloader.timeout
-        self.drop_last = True
+        self.drop_last = config.dataloader.drop_last
 
         # Set the number of movers
         self.num_movers = config.dataloader.num_movers
@@ -200,7 +203,9 @@ class FlyDataLoader:
         set_random_seed(self._random_seed)
 
         _utils.signal_handling._set_SIGCHLD_handler()
+        # signal.signal(signal.SIGINT, self.keyboardInterruptHandler)
         atexit.register(self.__del__)
+        
 
     def __len__(self):
         return len(self.dataset)
@@ -228,7 +233,10 @@ class FlyDataLoader:
             self._plasma_client.delete(self._old_obj_buffer)
             self._old_obj_buffer = []
 
-        return worker_indices, batch
+        if self.post_process_fn:
+            return self.post_process_fn(worker_indices, batch)
+        else:
+            return batch
 
     def _sync_get_batch(self):
         batch = []
@@ -244,6 +252,9 @@ class FlyDataLoader:
                 worker_indices.append(idx)
                 self._old_obj_buffer.append(obj_id)
             except queue.Empty:
+                if self.drop_last:
+                    batch = []
+                    break
                 self.empty_queues.add(idx)
                 continue
 
@@ -253,7 +264,7 @@ class FlyDataLoader:
             [out_queue.close() for out_queue in self._out_queues]
             self.kill_movers()
             self.kill_workers()
-            self._internal_counter += 10000
+            self._internal_counter += 300
             raise StopIteration
 
         return worker_indices, self._collate_fn(batch)
@@ -270,6 +281,8 @@ class FlyDataLoader:
                 worker_indices.append(idx)
                 self._old_obj_buffer.append(obj_id)
             except queue.Empty:
+                if self.drop_last:
+                    batch = []
                 break
 
         if len(batch) == 0:
@@ -278,7 +291,7 @@ class FlyDataLoader:
             [out_queue.close() for out_queue in self._out_queues]
             self.kill_movers()
             self.kill_workers()
-            self._internal_counter += 10000
+            self._internal_counter += 300
             raise StopIteration
 
         return worker_indices, self._collate_fn(batch)
@@ -292,7 +305,7 @@ class FlyDataLoader:
                     config=self.config,
                     local_rank=local_rank,
                     random_seed=local_rank + self._internal_counter + self._random_seed + self.rank * self.num_movers +
-                    30000,
+                    900000,
                     dataset=dataset,
                     in_queue=self._in_queue,
                     done_event=self._done_event,
@@ -364,3 +377,12 @@ class FlyDataLoader:
         "Destructor handle the cleaning of processes"
         self.kill_movers()
         self.kill_workers()
+
+    def keyboardInterruptHandler(self, signal, frame):
+        logger.info("Keyboard Terminated!")
+        self._in_queue.close()
+        [out_queue.close() for out_queue in self._out_queues]
+        self.kill_movers()
+        self.kill_workers()
+        self._internal_counter += 10000
+        raise KeyboardInterrupt

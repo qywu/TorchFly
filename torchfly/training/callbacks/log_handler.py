@@ -110,7 +110,7 @@ class LogHandler(Callback):
     # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=155)
     def setup_timer(self, trainer: Trainer):
-        
+
         if self.rank == 0:
             self.last_log_time = time.time()
             self.epoch_start_time = time.time()
@@ -133,14 +133,17 @@ class LogHandler(Callback):
             os.makedirs(log_dir, exist_ok=True)
             self.tensorboard = SummaryWriter(log_dir=log_dir, purge_step=trainer.global_step_count)
 
+        if not self.training_in_epoch:
+            logger.info(f"Training total num of steps: {trainer.total_num_update_steps}")
+
     @handle_event(Events.EPOCH_BEGIN)
     def setup_epoch_timer(self, trainer: Trainer):
         if self.rank == 0:
-            if not self.training_in_epoch:
-                logger.info(f"Training total num of steps: {trainer.total_num_update_steps}")
-            else:
+            if self.training_in_epoch:
                 logger.info("Epoch %d/%d", trainer.epochs_trained + 1, trainer.total_num_epochs)
                 self.epoch_start_time = time.time()
+            else:
+                logger.info(f"Epoch {trainer.epochs_trained + 1}")
 
     @handle_event(Events.BATCH_END)
     def on_batch_end(self, trainer: Trainer):
@@ -256,15 +259,12 @@ class LogHandler(Callback):
         if self.rank == 0:
             logging.shutdown()
             logger.handlers.clear()
-            
+
             if self.tensorboard:
                 self.tensorboard.close()
 
     def state_dict(self):
-        state_dict = {
-            "cumulative_time": self.cumulative_time,
-            "history_log_dict": self.history_log_dict
-        }
+        state_dict = {"cumulative_time": self.cumulative_time, "history_log_dict": self.history_log_dict}
         return state_dict
 
     def load_state_dict(self, state_dict):

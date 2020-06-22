@@ -61,7 +61,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
         if self.connected:
             raise ValueError("Plasma has already been initialized!")
 
-        if (os.environ.get("LOCAL_RANK", False) == 0) and (not use_exist_plasma_server):
+        if (int(os.environ.get("LOCAL_RANK", False)) == 0) and (not use_exist_plasma_server):
             memory = psutil.virtual_memory()
             plasma_store_memory = int(memory.available * self.use_mem_percent)
 
@@ -82,7 +82,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
 
             # assume plasma server is running
             self.plasma_store_path = f"/tmp/torchfly/plasma/{self.plasma_store_name}/plasma.sock"
-            local_rank = os.environ.get("LOCAL_RANK", 0)
+            local_rank = int(os.environ.get("LOCAL_RANK", 0))
             logger.info(f"Plasma Store on {local_rank} is connected!")
             self.client = plasma.connect(self.plasma_store_path)
 
