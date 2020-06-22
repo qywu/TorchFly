@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import subprocess
 import psutil
@@ -21,11 +22,15 @@ class Singleton(type):
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        else:
+            logger.warn(f"Singleton instance {str(cls)} already exists!")
         return cls._instances[cls]
 
 
 class GlobalPlasmaManager(metaclass=Singleton):
-    def __init__(self, config: OmegaConf = None):
+    def __init__(
+        self, config: OmegaConf = None, check_instance_exist: bool = False, use_exist_plasma_server: bool = False
+    ):
         """Initialize a Plasma object."""
         if config is not None:
             self.plasma_store_name = config.plasma_store_name
@@ -34,27 +39,29 @@ class GlobalPlasmaManager(metaclass=Singleton):
             self.plasma_store_name = None
             self.use_mem_percent = 0.30
 
+        self.use_exist_plasma_server = use_exist_plasma_server
+
         self.connected = False
         self.plasma_store_address = None
         self.plasma_store_path = None
         self.plasma_store_proc = None
         self.client = None
 
-        self.initialize(self.plasma_store_name)
+        self.initialize(self.plasma_store_name, self.use_exist_plasma_server)
 
         assert self.client is not None
 
         # shut down plasma when the program is killed
         atexit.register(self.__del__)
 
-    def initialize(self, plasma_store_name):
+    def initialize(self, plasma_store_name, use_exist_plasma_server):
         """
         os.environ["LOCAL_RANK"] is checked to make sure there is only one Plasma Store Server is runing on each local machine 
         """
         if self.connected:
             raise ValueError("Plasma has already been initialized!")
 
-        if "LOCAL_RANK" not in os.environ or os.environ["LOCAL_RANK"] == 0:
+        if (os.environ.get("LOCAL_RANK", False) == 0) and (not use_exist_plasma_server):
             memory = psutil.virtual_memory()
             plasma_store_memory = int(memory.available * self.use_mem_percent)
 
@@ -75,7 +82,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
 
             # assume plasma server is running
             self.plasma_store_path = f"/tmp/torchfly/plasma/{self.plasma_store_name}/plasma.sock"
-            local_rank = os.environ["LOCAL_RANK"]
+            local_rank = os.environ.get("LOCAL_RANK", 0)
             logger.info(f"Plasma Store on {local_rank} is connected!")
             self.client = plasma.connect(self.plasma_store_path)
 
@@ -88,16 +95,18 @@ class GlobalPlasmaManager(metaclass=Singleton):
         return (f"Plasma Store on: \n" f"    Addr: {self.plasma_store_address}\n" f"    Path: {self.plasma_store_path}")
 
     def __del__(self):
-        "Destructor of PlasmaManager"
-        if self.plasma_store_path and os.path.exists(self.plasma_store_path):
-            shutil.rmtree(os.path.dirname(self.plasma_store_path))
+        # Only the first copy
+        if not self.use_exist_plasma_server:
+            "Destructor of PlasmaManager"
+            if self.plasma_store_path and os.path.exists(self.plasma_store_path):
+                shutil.rmtree(os.path.dirname(self.plasma_store_path))
 
-        if isinstance(self.plasma_store_proc, subprocess.Popen):
-            self.plasma_store_proc.kill()
+            if isinstance(self.plasma_store_proc, subprocess.Popen):
+                self.plasma_store_proc.kill()
 
-        if self.connected:
-            logger.info("Plasma is ended!")
-            self.connected = False
+            if self.connected:
+                logger.info("Plasma is ended!")
+                self.connected = False
 
 
 def _hash(x: str):
@@ -141,8 +150,8 @@ def _start_plasma_store(
     if use_hugepages:
         command += ["-h"]
 
-    stdout_file = None
-    stderr_file = None
+    stdout_file = open("plasma_stdout.log", "w")
+    stderr_file = open("plasma_stderr.log", "w")
     if use_valgrind:
         command = [
             "valgrind", "--track-origins=yes", "--leak-check=full", "--show-leak-kinds=all",
