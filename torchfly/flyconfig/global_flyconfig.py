@@ -21,7 +21,14 @@ class Singleton(type):
 
 
 class GlobalFlyConfig(metaclass=Singleton):
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, disable_chdir: bool = False):
+        """Initialize FlyConfig globally
+
+        Args:
+            config_path: where the config file is located.
+            disable_chdir: since FlyConfig changes working dir, this argument can disable it
+        """
+        self.disable_chdir = disable_chdir
         self.initialized = False
         self.user_config = None
         self.system_config = None
@@ -60,14 +67,16 @@ class GlobalFlyConfig(metaclass=Singleton):
         config.flyconfig.runtime.cwd = os.getcwd()
 
         # change working dir
-        working_dir_path = config.flyconfig.run.dir
-        os.makedirs(working_dir_path, exist_ok=True)
-        os.chdir(working_dir_path)
+        if not self.disable_chdir:
+            working_dir_path = config.flyconfig.run.dir
+            os.makedirs(working_dir_path, exist_ok=True)
+            os.chdir(working_dir_path)
 
         # configure logging
-        logging.config.dictConfig(OmegaConf.to_container(config.flyconfig.logging))
-        logger.info("FlyConfig Initialized")
-        logger.info(f"Working directory is changed to {working_dir_path}")
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            logging.config.dictConfig(OmegaConf.to_container(config.flyconfig.logging))
+            logger.info("FlyConfig Initialized")
+            logger.info(f"Working directory is changed to {working_dir_path}")
 
         # clean defaults
         del config["defaults"]
@@ -80,16 +89,17 @@ class GlobalFlyConfig(metaclass=Singleton):
         del self.user_config["flyconfig"]
 
         # save config
-        os.makedirs(self.system_config.flyconfig.output_subdir, exist_ok=True)
-        _save_config(
-            filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
-            config=self.system_config
-        )
-        _save_config(
-            filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"), config=self.user_config
-        )
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            os.makedirs(self.system_config.flyconfig.output_subdir, exist_ok=True)
+            _save_config(
+                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
+                config=self.system_config
+            )
+            _save_config(
+                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"), config=self.user_config
+            )
 
-        logger.info("\n\nConfiguration:\n" + self.user_config.pretty())
+            logger.info("\n\nConfiguration:\n" + self.user_config.pretty())
         self.initialized = True
 
         return self.user_config

@@ -76,6 +76,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
             )
             self.client = plasma.connect(self.plasma_store_path)
         else:
+            time.sleep(1)
             #  init plasma name
             if plasma_store_name is None:
                 self.plasma_store_name = _hash(os.getcwd())
@@ -83,7 +84,7 @@ class GlobalPlasmaManager(metaclass=Singleton):
             # assume plasma server is running
             self.plasma_store_path = f"/tmp/torchfly/plasma/{self.plasma_store_name}/plasma.sock"
             local_rank = int(os.environ.get("LOCAL_RANK", 0))
-            logger.info(f"Plasma Store on {local_rank} is connected!")
+            logger.info(f"Plasma Store on {local_rank} is connected without starting server!")
             self.client = plasma.connect(self.plasma_store_path)
 
         logger.info("Plasma Client Connected!")

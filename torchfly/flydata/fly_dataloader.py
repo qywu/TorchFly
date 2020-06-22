@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # pylint:disable=no-member
 
+
 def set_random_seed(random_seed):
     random.seed(random_seed)
     np.random.seed(random_seed)
@@ -61,7 +62,7 @@ class _DataMover(Process):
         torch.set_num_threads(1)
         # DO NOT use singleton pattern for multiprocessing!
         self._plasma_client = plasma.connect(f"/tmp/torchfly/plasma/{self.config.plasma.plasma_store_name}/plasma.sock")
-        set_random_seed(self.local_rank + self._random_seed)
+        set_random_seed(self._random_seed)
 
         for item in self.dataset:
             try:
@@ -149,12 +150,14 @@ class FlyDataLoader:
     ):
         """
         Args:
+            config:
+            dataset:
         """
         self.config = config
         self.dataset = dataset
         self.processor = processor
         self.post_process_fn = post_process_fn
-        self.rank = int(os.environ["LOCAL_RANK"]) if "LOCAL_RANK" in os.environ else 0
+        self.rank = int(os.environ.get("LOCAL_RANK", 0))
 
         self.batch_size = config.dataloader.batch_size
         self.sync_output = config.dataloader.sync_output
@@ -205,7 +208,6 @@ class FlyDataLoader:
         _utils.signal_handling._set_SIGCHLD_handler()
         # signal.signal(signal.SIGINT, self.keyboardInterruptHandler)
         atexit.register(self.__del__)
-        
 
     def __len__(self):
         return len(self.dataset)
@@ -300,8 +302,9 @@ class FlyDataLoader:
         # Start Movers
         # mover need to have a different random seed than all other processes
         if self.num_movers > 0:
-            self._movers = [
-                _DataMover(
+            self._movers = []
+            for local_rank in range(self.num_movers):
+                mover = _DataMover(
                     config=self.config,
                     local_rank=local_rank,
                     random_seed=local_rank + self._internal_counter + self._random_seed + self.rank * self.num_movers +
@@ -309,8 +312,9 @@ class FlyDataLoader:
                     dataset=dataset,
                     in_queue=self._in_queue,
                     done_event=self._done_event,
-                ) for local_rank in range(self.num_movers)
-            ]
+                )
+                self._movers.append(mover)
+            
             for mover in self._movers:
                 mover.daemon = True
                 mover.start()
