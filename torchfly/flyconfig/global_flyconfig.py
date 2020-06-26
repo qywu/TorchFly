@@ -21,7 +21,7 @@ class Singleton(type):
 
 
 class GlobalFlyConfig(metaclass=Singleton):
-    def __init__(self, config_path: str = None, disable_chdir: bool = False):
+    def __init__(self, config_path: str = None, disable_chdir: bool = False, disable_logging: bool = False):
         """Initialize FlyConfig globally
 
         Args:
@@ -29,6 +29,7 @@ class GlobalFlyConfig(metaclass=Singleton):
             disable_chdir: since FlyConfig changes working dir, this argument can disable it
         """
         self.disable_chdir = disable_chdir
+        self.disable_logging = disable_logging
         self.initialized = False
         self.user_config = None
         self.system_config = None
@@ -37,14 +38,15 @@ class GlobalFlyConfig(metaclass=Singleton):
         if config_path is not None:
             self.initialize(config_path)
 
-    def initialize(self, config_path: str) -> OmegaConf:
+    def initialize(self, config_path: str, force: bool=False) -> OmegaConf:
         """
         Args:
             config_path: a file or dir
+            force: ignore if initialized
         Returns:
             user_config: only return the user config
         """
-        if self.initialized:
+        if self.initialized and not force:
             raise ValueError("FlyConfig is already initialized!")
 
         # Search config file
@@ -73,10 +75,11 @@ class GlobalFlyConfig(metaclass=Singleton):
             os.chdir(working_dir_path)
 
         # configure logging
-        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0 and not self.disable_logging:
             logging.config.dictConfig(OmegaConf.to_container(config.flyconfig.logging))
             logger.info("FlyConfig Initialized")
-            logger.info(f"Working directory is changed to {working_dir_path}")
+            if not self.disable_chdir:
+                logger.info(f"Working directory is changed to {working_dir_path}")
 
         # clean defaults
         del config["defaults"]
@@ -89,17 +92,19 @@ class GlobalFlyConfig(metaclass=Singleton):
         del self.user_config["flyconfig"]
 
         # save config
-        if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        if int(os.environ.get("LOCAL_RANK", 0)) == 0 and not self.disable_logging:
             os.makedirs(self.system_config.flyconfig.output_subdir, exist_ok=True)
             _save_config(
                 filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
                 config=self.system_config
             )
             _save_config(
-                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"), config=self.user_config
+                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"),
+                config=self.user_config
             )
 
             logger.info("\n\nConfiguration:\n" + self.user_config.pretty())
+
         self.initialized = True
 
         return self.user_config
