@@ -1,9 +1,11 @@
 import os
+import sys
 import copy
 import logging
 import logging.config
 from omegaconf import OmegaConf, DictConfig
 from typing import Any, Dict, List
+import argparse
 
 from .utils import get_config_fullpath
 
@@ -38,7 +40,7 @@ class GlobalFlyConfig(metaclass=Singleton):
         if config_path is not None:
             self.initialize(config_path)
 
-    def initialize(self, config_path: str, force: bool=False) -> OmegaConf:
+    def initialize(self, config_path: str, force: bool = False) -> OmegaConf:
         """
         Args:
             config_path: a file or dir
@@ -46,6 +48,7 @@ class GlobalFlyConfig(metaclass=Singleton):
         Returns:
             user_config: only return the user config
         """
+
         if self.initialized and not force:
             raise ValueError("FlyConfig is already initialized!")
 
@@ -84,6 +87,11 @@ class GlobalFlyConfig(metaclass=Singleton):
         # clean defaults
         del config["defaults"]
 
+        # overrides
+        overrides = get_overrides_from_argv(sys.argv[1:])
+        overrides_config = OmegaConf.from_dotlist(overrides)
+        config = OmegaConf.merge(config, overrides_config)
+
         # get system config
         self.system_config = OmegaConf.create({"flyconfig": OmegaConf.to_container(config.flyconfig)})
 
@@ -115,6 +123,14 @@ class GlobalFlyConfig(metaclass=Singleton):
     def clear(self) -> None:
         self.initialized = False
         self.config = None
+
+
+def get_overrides_from_argv(arguments: List[str]) -> List:
+    overrides = []
+    for argv in arguments:
+        if "=" in argv and not argv.startswith("-") and not argv.startswith("--"):
+            overrides.append(argv)
+    return overrides
 
 
 def _save_config(filepath, config):

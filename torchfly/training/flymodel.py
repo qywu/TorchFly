@@ -52,6 +52,8 @@ class FlyModel(nn.Module):
 
         if optimizer_name == "AdamW":
             optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
+        elif optimizer_name == "Adafactor":
+            raise NotImplementedError
         elif optimizer_name == "FusedAdam":
             optimizer = apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=lr, betas=betas)
         elif optimizer_name == "Adadelta":
@@ -94,6 +96,9 @@ class FlyModel(nn.Module):
             raise NotImplementedError
 
         return [optimizer], [scheduler]
+
+    # def to(self, device, non_blocking=False):
+    #     pass
 
     # def to_distributed(self):
     #     for key, _ in self.named_children():

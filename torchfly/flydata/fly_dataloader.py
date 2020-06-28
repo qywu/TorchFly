@@ -3,6 +3,7 @@ import sys
 import signal
 import logging
 import tqdm
+import time
 import datetime
 import torch
 import torch.utils.data._utils as _utils
@@ -60,8 +61,10 @@ class _DataMover(Process):
 
     def run(self):
         torch.set_num_threads(1)
+
         # DO NOT use singleton pattern for multiprocessing!
         self._plasma_client = plasma.connect(f"/tmp/torchfly/plasma/{self.config.plasma.plasma_store_name}/plasma.sock")
+        atexit.register(self._plasma_client.disconnect)
         set_random_seed(self._random_seed)
 
         for item in self.dataset:
@@ -106,7 +109,9 @@ class _DataWorker(Process):
 
     def run(self):
         torch.set_num_threads(1)
+
         self._plasma_client = plasma.connect(f"/tmp/torchfly/plasma/{self.config.plasma.plasma_store_name}/plasma.sock")
+        atexit.register(self._plasma_client.disconnect)
         set_random_seed(self._random_seed)
 
         # need to make sure each processor has different local rank
@@ -178,7 +183,7 @@ class FlyDataLoader:
         # Set number of output queues
         self._num_out_queues = self.batch_size if self.sync_output else 1
 
-        self._worker_pids_set = False
+        self._multiprocessing_running = False
         self._done_event = Event()
 
         # Set processor collate function
@@ -196,7 +201,6 @@ class FlyDataLoader:
         self._out_queue_size = config.dataloader.out_queue_size_multiplier * self.batch_size
 
         self._internal_counter = 0
-        self._worker_pids_set = True
         self._old_obj_buffer = []
         self.object_buffer_size = config.dataloader.object_buffer_size
 
@@ -205,14 +209,19 @@ class FlyDataLoader:
         self._random_seed = config.random_seed
         set_random_seed(self._random_seed)
 
+        signal.signal(signal.SIGINT, self.keyboardInterruptHandler)
         _utils.signal_handling._set_SIGCHLD_handler()
-        # signal.signal(signal.SIGINT, self.keyboardInterruptHandler)
         atexit.register(self.__del__)
 
     def __len__(self):
         return len(self.dataset)
 
     def __iter__(self):
+        if self._multiprocessing_running:
+            self.cleanup()
+        else:
+            self._multiprocessing_running = True
+
         # Prepare Queues
         self._in_queue = Queue(maxsize=self._in_queue_size)
         self._out_queues = [Queue(maxsize=self._out_queue_size) for _ in range(self._num_out_queues)]
@@ -261,11 +270,7 @@ class FlyDataLoader:
                 continue
 
         if len(batch) == 0:
-            # End all multiprocessing parts
-            self._in_queue.close()
-            [out_queue.close() for out_queue in self._out_queues]
-            self.kill_movers()
-            self.kill_workers()
+            self.cleanup()
             self._internal_counter += 300
             raise StopIteration
 
@@ -289,10 +294,7 @@ class FlyDataLoader:
 
         if len(batch) == 0:
             # End all multiprocessing parts
-            self._in_queue.close()
-            [out_queue.close() for out_queue in self._out_queues]
-            self.kill_movers()
-            self.kill_workers()
+            self.cleanup()
             self._internal_counter += 300
             raise StopIteration
 
@@ -314,7 +316,7 @@ class FlyDataLoader:
                     done_event=self._done_event,
                 )
                 self._movers.append(mover)
-            
+
             for mover in self._movers:
                 mover.daemon = True
                 mover.start()
@@ -377,16 +379,29 @@ class FlyDataLoader:
                 if m.is_alive():
                     m.kill()
 
-    def __del__(self):
-        "Destructor handle the cleaning of processes"
+    def cleanup(self):
+        assert self._multiprocessing_running
+        self._multiprocessing_running = False
+
+        # End all multiprocessing parts
+        self._in_queue.close()
+        [out_queue.close() for out_queue in self._out_queues]
+
+        # end multiprocessing
         self.kill_movers()
         self.kill_workers()
+        time.sleep(1)
+
+        # clean plasma store
+        existing_objects = self._plasma_client.list()
+        self._plasma_client.delete(list(existing_objects.keys()))
+
+    def __del__(self):
+        "Destructor handle the cleaning of processes"
+        self.cleanup()
 
     def keyboardInterruptHandler(self, signal, frame):
         logger.info("Keyboard Terminated!")
-        self._in_queue.close()
-        [out_queue.close() for out_queue in self._out_queues]
-        self.kill_movers()
-        self.kill_workers()
+        self.cleanup()
         self._internal_counter += 10000
         raise KeyboardInterrupt
