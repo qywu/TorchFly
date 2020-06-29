@@ -1,13 +1,14 @@
 import os
 import sys
 import copy
+import time
 import logging
 import logging.config
 from omegaconf import OmegaConf, DictConfig
 from typing import Any, Dict, List
 import argparse
 
-from .utils import get_config_fullpath
+from .utils import get_config_fullpath, setup_flyconfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,16 @@ class Singleton(type):
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
+
+def init_omegaconf() -> None:
+    """Initilize Omegaconf custom functions"""
+    def _time_pattern(pattern: str):
+        return time.strftime(pattern, time.localtime())
+
+    try:
+        OmegaConf.register_resolver("now", _time_pattern)
+    except AssertionError as e:
+        logger.warning(e)
 
 class GlobalFlyConfig(metaclass=Singleton):
     def __init__(self, config_path: str = None, disable_chdir: bool = False, disable_logging: bool = False):
@@ -62,6 +73,8 @@ class GlobalFlyConfig(metaclass=Singleton):
                 raise ValueError("Cannot find config.yml. Please specify `config_file`")
 
             config_path = os.path.join(config_path, config_file)
+
+        init_omegaconf()
 
         system_config = load_system_config()
         user_config = load_user_config(config_path)
