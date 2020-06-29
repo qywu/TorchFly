@@ -160,6 +160,10 @@ class TrainerLoop:
             self.log_callback = LogHandler(self.config)
             self.add_callback(self.log_callback)
 
+        if self.config.training.optimization.max_gradient_norm > 0:
+            gradient_clip_norm_callback = GradientClipNorm(self.config)
+            self.add_callback(gradient_clip_norm_callback)
+
     def configure_fp16(self):
         # FP16
         if self.fp16 and self.config.training.num_gpus_per_node > 0:
