@@ -110,7 +110,6 @@ class LogHandler(Callback):
     # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=155)
     def setup_timer(self, trainer: Trainer):
-
         if self.rank == 0:
             self.last_log_time = time.time()
             self.epoch_start_time = time.time()
@@ -178,15 +177,18 @@ class LogHandler(Callback):
     @handle_event(Events.VALIDATE_BEGIN)
     def info_valid_begin(self, trainer: Trainer):
         if self.rank == 0:
-            logger.info(f"Steps {trainer.global_step_count}: Validation Begins:")
+            updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
+            logger.info(f"Steps {updated_steps}: Validation Begins:")
 
     @handle_event(Events.VALIDATE_END)
     def show_metrics(self, trainer: Trainer):
         if self.rank == 0:
+            updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
+
             for metric_name, value in trainer.tmp_vars["validate_metrics"].items():
                 metric_name = metric_name[0].upper() + metric_name[1:]
                 if not self.training_in_epoch:
-                    logger.info(f"Steps {trainer.global_step_count}: Validation {metric_name} {value:4.4f}")
+                    logger.info(f"Steps {updated_steps}: Validation {metric_name} {value:4.4f}")
                 else:
                     logger.info(f"Epoch {trainer.epochs_trained + 1}: Validation {metric_name} {value:4.4f}")
 

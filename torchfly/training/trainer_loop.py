@@ -174,7 +174,9 @@ class TrainerLoop:
         if self.config.training.num_gpus_per_node > 1:
             # Distributed training (should be after apex fp16 initialization)
             self.distributed_training = True
+            reset_func = self.model.reset
             self.model = DistributedDataParallel(self.model, delay_allreduce=True)
+            setattr(self.model, "reset", reset_func)
             # trainer.model = torch.nn.parallel.DistributedDataParallel(
             #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
             # )
