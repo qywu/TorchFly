@@ -97,6 +97,12 @@ class FlyModel(nn.Module):
 
         return [optimizer], [scheduler]
 
+    def reset(self):
+        """
+        Reset any stateful info during training
+        """
+        pass
+
     # def to(self, device, non_blocking=False):
     #     pass
 

@@ -1,4 +1,4 @@
-from typing import Any, List, Dict, Iterator, Callable
+from typing import Any, List, Dict, Iterator, Callable, Iterable
 import os
 import random
 import numpy as np
@@ -74,7 +74,7 @@ class TrainerLoop:
         self.model = model
 
         self.train_dataloader = train_dataloader_fn(config)
-        self.validation_dataloader = valid_dataloader_fn(config) if valid_dataloader_fn else None
+        self.validation_dataloader: Iterable = valid_dataloader_fn(config) if valid_dataloader_fn else None
         self.test_dataloader = test_dataloader_fn(config) if test_dataloader_fn else None
 
         self.callback_handler = CallbackHandler(
@@ -116,6 +116,7 @@ class TrainerLoop:
             self.epoch_num_training_steps = self.total_num_update_steps
 
         # Validation steps interval
+        self.validation_after_num_steps = config.training.validation.after_num_steps
         if self.validation_steps_interval < 0:
             self.validation_steps_interval = self.epoch_num_training_steps - 1
 
@@ -207,6 +208,7 @@ class TrainerLoop:
                 raise NotImplementedError
 
     def train_epoch(self):
+        self.model.reset()
         self.optimizer = self.optimizers[0]
         self.scheduler = self.schedulers[0]
 
@@ -230,8 +232,10 @@ class TrainerLoop:
 
             # Only rank 0 can run the validation dataset
             if self.rank == 0:
-                if (self.global_step_count + 1) % self.validation_steps_interval == 0:
-                    if not self.validation_dataloader is None:
+                if self.global_step_count > self.validation_after_num_steps and \
+                    ((self.global_step_count + 1) % self.validation_steps_interval == 0):
+
+                    if self.validation_dataloader is not None:
                         self.model.eval()
                         # BEGIN
                         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
@@ -273,11 +277,12 @@ class TrainerLoop:
             loss.backward()
 
     def validate(self):
+        self.model.reset()
         # Validation
         self.model.eval()
         # No gradient is needed for validation
         with torch.no_grad():
-            for batch in self.validation_dataloader:
+            for batch in iter(self.validation_dataloader):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
@@ -291,6 +296,7 @@ class TrainerLoop:
             metrics = self.model.module.get_metrics(reset=True)
         else:
             metrics = self.model.get_metrics(reset=True)
+        self.model.reset()
         return metrics
 
     def set_model_state(self, model_state_dict):
