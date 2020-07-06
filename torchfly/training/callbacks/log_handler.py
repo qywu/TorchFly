@@ -205,7 +205,7 @@ class LogHandler(Callback):
         updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
 
         if not self.training_in_epoch:
-            percent = 100. * updated_steps / (trainer.epoch_num_training_steps // trainer.gradient_accumulation_steps)
+            percent = 100. * updated_steps / trainer.epoch_num_training_steps 
         else:
             percent = 100. * trainer.local_step_count / trainer.epoch_num_training_steps
 
