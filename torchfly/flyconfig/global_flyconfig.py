@@ -2,6 +2,7 @@ import os
 import sys
 import copy
 import time
+import shutil
 import logging
 import logging.config
 from omegaconf import OmegaConf, DictConfig
@@ -32,6 +33,7 @@ def init_omegaconf() -> None:
         OmegaConf.register_resolver("now", _time_pattern)
     except AssertionError as e:
         logger.warning(e)
+
 
 class GlobalFlyConfig(metaclass=Singleton):
     def __init__(self, config_path: str = None, disable_chdir: bool = False, disable_logging: bool = False):
@@ -115,10 +117,19 @@ class GlobalFlyConfig(metaclass=Singleton):
         # save config
         if int(os.environ.get("LOCAL_RANK", 0)) == 0 and not self.disable_logging:
             os.makedirs(self.system_config.flyconfig.output_subdir, exist_ok=True)
+
+            # save the entire config directory
+            cwd = self.system_config.flyconfig.runtime.cwd
+            dirpath = os.path.join(cwd, os.path.dirname(config_path))
+            shutil.copytree(dirpath, os.path.join(self.system_config.flyconfig.output_subdir, "config"))
+
+            # save system config
             _save_config(
                 filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
                 config=self.system_config
             )
+
+            # save user config
             _save_config(
                 filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"),
                 config=self.user_config
