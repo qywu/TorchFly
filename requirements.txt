@@ -1,12 +1,9 @@
-ray==0.8.2
+torch
 regex
-transformers==2.5.1
-hydra-core
-hydra-colorlog
-colorlog==4.1.0
+transformers
 tensorboard
 tqdm
 gdown
-scikit-learn
 overrides
 pyarrow
+colorlog

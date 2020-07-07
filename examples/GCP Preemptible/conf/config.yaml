@@ -1,8 +1,0 @@
-defaults:
-    - hydra/job_logging: colorlog
-    - hydra/hydra_logging: colorlog
-preempt:
-    instance_name: qywu-torchfly
-    loop_interval: 5 # how many seconds for the interval to check if the instance is preempted. 
-    task_duration: 60 # how many hours for this task
-    start_time: 2020-03-11 23:09

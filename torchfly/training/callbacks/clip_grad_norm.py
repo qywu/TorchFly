@@ -13,6 +13,7 @@ from .callback import Callback, handle_event
 logger = logging.getLogger(__name__)
 Trainer = Any
 
+
 @Callback.register("gradient_clip_norm")
 class GradientClipNorm(Callback):
     """
@@ -21,10 +22,12 @@ class GradientClipNorm(Callback):
     @handle_event(Events.STEP_BEGIN, priority=-100)
     def gradient_clip_norm(self, trainer: Trainer):
         # gradient norm clipping
-        if self.config.training.max_gradient_norm > 0:
-            if self.config.training.fp16:
+        if self.config.training.optimization.max_gradient_norm > 0:
+            if self.config.training.optimization.fp16:
                 torch.nn.utils.clip_grad_norm_(
-                    amp.master_params(trainer.optimizer), self.config.training.max_gradient_norm
+                    amp.master_params(trainer.optimizer), self.config.training.optimization.max_gradient_norm
                 )
             else:
-                torch.nn.utils.clip_grad_norm_(trainer.model.parameters(), self.config.training.max_gradient_norm)
+                torch.nn.utils.clip_grad_norm_(
+                    trainer.model.parameters(), self.config.training.optimization.max_gradient_norm
+                )

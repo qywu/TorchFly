@@ -1,5 +1,5 @@
-import ray
 import torch
+from torch.multiprocessing import Process
 import numpy as np
 import logging
 from collections import OrderedDict
@@ -19,7 +19,8 @@ def copy_cpu_state_dict(states: Any) -> Dict[str, Any]:
     elif isinstance(states, list):
         result_states = [copy_cpu_state_dict(item) for item in states]
     elif isinstance(states, torch.Tensor):
-        result_states = states.cpu().numpy()
+        # If it is torch.Tensor, copy to cpu first
+        result_states = states.cpu()
     elif isinstance(states, (int, float, str, tuple, type(None))):
         result_states = states
     else:
@@ -29,36 +30,18 @@ def copy_cpu_state_dict(states: Any) -> Dict[str, Any]:
     return result_states
 
 
-def _convert_numpy_to_torch_state_dict(states: Dict[str, Any]) -> Dict[str, Any]:
-    # No need to copy states
-    if isinstance(states, dict):
-        # recursion
-        for k in states:
-            states[k] = _convert_numpy_to_torch_state_dict(states[k])
-    elif isinstance(states, list):
-        states = [_convert_numpy_to_torch_state_dict(item) for item in states]
-    elif isinstance(states, np.ndarray):
-        states = torch.from_numpy(states)
-    elif isinstance(states, (int, float, str, tuple, type(None))):
-        states = states
-    else:
-        states = states
-        logging.warn(f"`_convert_numpy_to_torch_state_dict` cannot parse {type(states)}")
-    return states
-
-
-@ray.remote
-def _async_save(states, filename):
-    states = _convert_numpy_to_torch_state_dict(states)
+def _save(states: OrderedDict, filename):
     torch.save(states, filename)
     return 0
 
 
-def async_save(model_states: OrderedDict, filename):
+def async_save(model_states: OrderedDict, filename) -> Process:
     model_states = copy_cpu_state_dict(model_states)
-    ray_obj = _async_save.remote(model_states, filename)
-    return ray_obj
+    p = Process(target=_save, args=(model_states, filename), daemon=True)
+    p.daemon = True
+    p.start()
+    return p
 
 
-def check_async_status(ray_obj):
-    return ray.get(ray_obj)
+def async_wait(process: Process):
+    process.join()

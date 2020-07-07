@@ -37,3 +37,7 @@ To use the repo,
 ```python
 import torchfly
 ```
+
+## Documentation
+
+https://qywu.github.io/TorchFly

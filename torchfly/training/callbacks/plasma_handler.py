@@ -17,7 +17,7 @@ Trainer = Any
 @Callback.register("plasma_handler")
 class PlasmaHandler(Callback):
 
-    @handle_event(Events.INITIALIZE)
+    @handle_event(Events.INITIALIZE, priority=200)
     def start_plasma(self, trainer: Trainer):
         init_plasma()
         self.plasma_store_address = get_plasma_manager().plasma_store_address
@@ -25,4 +25,4 @@ class PlasmaHandler(Callback):
 
     @handle_event(Events.TRAIN_BEGIN, priority=200)
     def set_plasma_store_address(self, trainer: Trainer):
-        trainer.config.plasma_store_address = self.plasma_store_address
+        trainer.config.plasma.plasma_store_address = self.plasma_store_address
