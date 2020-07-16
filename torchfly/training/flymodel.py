@@ -17,7 +17,6 @@ class FlyModel(nn.Module):
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = config
-        self.weight_decay = self.config.training.optimization.weight_decay
 
     def predict(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -29,12 +28,17 @@ class FlyModel(nn.Module):
         """
         This function is used to set parameters with different weight decays
         """
+        try:
+            weight_decay = self.config.training.optimization.weight_decay
+        except:
+            weight_decay = 0.01
+
         # default groups
         no_decay = ["bias", "Norm"]
         optimizer_grouped_parameters = [
             {
                 "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.weight_decay,
+                "weight_decay": weight_decay,
             },
             {
                 "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
@@ -43,7 +47,7 @@ class FlyModel(nn.Module):
         ]
         return optimizer_grouped_parameters
 
-    def configure_optimizers(self, total_num_update_steps)  -> [List, List]:
+    def configure_optimizers(self, total_num_update_steps) -> [List, List]:
         optimizer_grouped_parameters = self.get_optimizer_parameters()
         lr = self.config.training.optimization.learning_rate
         optimizer_name = self.config.training.optimization.optimizer_name
@@ -97,7 +101,7 @@ class FlyModel(nn.Module):
 
         return [optimizer], [scheduler]
 
-    def reset(self):
+    def reset(self, batch_size=None):
         """
         Reset any stateful info during training
         """

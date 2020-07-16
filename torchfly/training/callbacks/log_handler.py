@@ -185,6 +185,9 @@ class LogHandler(Callback):
         if self.rank == 0:
             updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
 
+            if len(trainer.tmp_vars["validate_metrics"].items()) == 0:
+                logger.warn(f"No metrics to report! Check if `get_metrics` is implemented.")
+
             for metric_name, value in trainer.tmp_vars["validate_metrics"].items():
                 metric_name = metric_name[0].upper() + metric_name[1:]
                 if not self.training_in_epoch:
@@ -205,7 +208,7 @@ class LogHandler(Callback):
         updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
 
         if not self.training_in_epoch:
-            percent = 100. * updated_steps / trainer.epoch_num_training_steps 
+            percent = 100. * updated_steps / trainer.epoch_num_training_steps
         else:
             percent = 100. * trainer.local_step_count / trainer.epoch_num_training_steps
 

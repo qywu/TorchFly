@@ -18,7 +18,6 @@ def move_to_device(data, device, exclude_keys=None):
     # send data to device
     if isinstance(data, list):
         new_data = []
-
         for item in data:
             if isinstance(item, torch.Tensor):
                 new_data.append(item.to(device, non_blocking=True))
@@ -26,9 +25,17 @@ def move_to_device(data, device, exclude_keys=None):
                 new_data.append(move_to_device(item, device, exclude_keys))
         data = new_data
 
+    elif isinstance(data, tuple):
+        new_data = ()
+        for item in data:
+            if isinstance(item, torch.Tensor):
+                new_data = new_data + (item.to(device, non_blocking=True), )
+            else:
+                new_data = new_data + (move_to_device(item, device, exclude_keys), )
+        data = new_data
+
     elif isinstance(data, dict):
         new_data = {}
-
         for k, v in data.items():
             if isinstance(v, torch.Tensor) and all([key not in k for key in exclude_keys]):
                 new_data[k] = v.to(device, non_blocking=True)

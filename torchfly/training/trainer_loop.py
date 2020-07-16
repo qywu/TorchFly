@@ -210,7 +210,7 @@ class TrainerLoop:
                 raise NotImplementedError
 
     def train_epoch(self):
-        self.model.reset()
+        self.model.reset(self.config.training.batch_size)
         self.optimizer = self.optimizers[0]
         self.scheduler = self.schedulers[0]
 
@@ -279,7 +279,7 @@ class TrainerLoop:
             loss.backward()
 
     def validate(self):
-        self.model.reset()
+        self.model.reset(self.config.training.batch_size)
         # Validation
         self.model.eval()
         # No gradient is needed for validation
@@ -298,7 +298,6 @@ class TrainerLoop:
             metrics = self.model.module.get_metrics(reset=True)
         else:
             metrics = self.model.get_metrics(reset=True)
-        self.model.reset()
         return metrics
 
     def set_model_state(self, model_state_dict):

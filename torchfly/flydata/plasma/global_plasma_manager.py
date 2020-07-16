@@ -29,15 +29,16 @@ class Singleton(type):
 
 class GlobalPlasmaManager(metaclass=Singleton):
     def __init__(
-        self, config: OmegaConf = None, check_instance_exist: bool = False, use_exist_plasma_server: bool = False
+        self,
+        plasma_store_name: str = None,
+        use_mem_percent: float = 0.3,
+        check_instance_exist: bool = False,
+        use_exist_plasma_server: bool = False
     ):
         """Initialize a Plasma object."""
-        if config is not None:
-            self.plasma_store_name = config.plasma_store_name
-            self.use_mem_percent = config.use_mem_percent
-        else:
-            self.plasma_store_name = None
-            self.use_mem_percent = 0.30
+
+        self.plasma_store_name = plasma_store_name
+        self.use_mem_percent = use_mem_percent
 
         self.use_exist_plasma_server = use_exist_plasma_server
 
