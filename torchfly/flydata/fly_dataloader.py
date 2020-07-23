@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class FlyDataLoader:
     def __init__(self, flydata_config: OmegaConf, env, collate_func=None):
         self.config = flydata_config
+        self.batch_size = flydata_config.dataloader.batch_size
         self.env = env
         self.collate_func = collate_func
         self.drop_last = self.config.dataloader.drop_last

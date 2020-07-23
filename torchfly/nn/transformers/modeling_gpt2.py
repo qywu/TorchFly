@@ -312,12 +312,13 @@ class GPT2Model(nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
+
 class GPT2LMHeadModel(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.transformer = GPT2Model(config)
-        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        # self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         self.init_weights()
 
@@ -384,7 +385,7 @@ class GPT2LMHeadModel(nn.Module):
         )
         hidden_states = transformer_outputs[0]
 
-        lm_logits = self.lm_head(hidden_states)
+        lm_logits = F.linear(hidden_states, self.transformer.wte.weight)
         outputs = (lm_logits, ) + transformer_outputs[1:]
 
         return outputs  # lm_logits, (presents), (all hidden_states), (attentions)
@@ -393,7 +394,6 @@ class GPT2LMHeadModel(nn.Module):
         """ Initialize and prunes weights if needed. """
         # Initialize weights
         self.apply(self._init_weights)
-        self.transformer.wte.weight = self.lm_head.weight
 
     def _init_weights(self, module):
         """ Initialize the weights.

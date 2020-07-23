@@ -148,6 +148,9 @@ class TrainerLoop:
         self.tmp_vars = {}
         self.callback_handler.fire_event(Events.INITIALIZE)
 
+        # make sure the model has access to trainer info
+        self.model.set_trainer(self)
+
     def configure_optimizers(self):
         return self.model.configure_optimizers(self.total_num_update_steps)
 
@@ -174,9 +177,7 @@ class TrainerLoop:
         if self.config.training.num_gpus_per_node > 1:
             # Distributed training (should be after apex fp16 initialization)
             self.distributed_training = True
-            reset_func = self.model.reset
             self.model = DistributedDataParallel(self.model, delay_allreduce=True)
-            setattr(self.model, "reset", reset_func)
             # trainer.model = torch.nn.parallel.DistributedDataParallel(
             #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
             # )
@@ -210,7 +211,6 @@ class TrainerLoop:
                 raise NotImplementedError
 
     def train_epoch(self):
-        self.model.reset(self.config.training.batch_size)
         self.optimizer = self.optimizers[0]
         self.scheduler = self.schedulers[0]
 
@@ -239,6 +239,7 @@ class TrainerLoop:
 
                     if self.validation_dataloader is not None:
                         self.model.eval()
+                        self.model.is_training = False
                         # BEGIN
                         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
 
@@ -246,6 +247,7 @@ class TrainerLoop:
 
                         self.callback_handler.fire_event(Events.VALIDATE_END)
                         self.model.train()
+                        self.model.is_training = True
 
             if self.global_step_count >= self.total_num_steps:
                 break
@@ -279,7 +281,6 @@ class TrainerLoop:
             loss.backward()
 
     def validate(self):
-        self.model.reset(self.config.training.batch_size)
         # Validation
         self.model.eval()
         # No gradient is needed for validation

@@ -17,6 +17,13 @@ class FlyModel(nn.Module):
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = config
+        self.is_training = True
+
+    def set_trainer(self, trainer):
+        """
+        Enable FlyModel to access trainer loop information
+        """
+        self.trainer = trainer
 
     def predict(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -100,12 +107,6 @@ class FlyModel(nn.Module):
             raise NotImplementedError
 
         return [optimizer], [scheduler]
-
-    def reset(self, batch_size=None):
-        """
-        Reset any stateful info during training
-        """
-        pass
 
     # def to(self, device, non_blocking=False):
     #     pass
