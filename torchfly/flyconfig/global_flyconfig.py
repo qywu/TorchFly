@@ -50,8 +50,14 @@ class GlobalFlyConfig(metaclass=Singleton):
         self.system_config = None
         self.old_cwd = os.getcwd()
 
-        if config_path is not None:
-            self.initialize(config_path)
+        config_path = get_config_path_from_argv(config_path)
+
+        if config_path is None:
+            raise ValueError(
+                "Please provide config_path via argument `--config_path your_file` or when initializing GlobalFlyConfig!"
+            )
+
+        self.initialize(config_path)
 
     def initialize(self, config_path: str, force: bool = False) -> OmegaConf:
         """
@@ -65,16 +71,7 @@ class GlobalFlyConfig(metaclass=Singleton):
         if self.initialized and not force:
             raise ValueError("FlyConfig is already initialized!")
 
-        # Search config file
-        if os.path.isdir(config_path):
-            if os.path.exists(os.path.join(config_path, "config.yaml")):
-                config_file = "config.yaml"
-            elif os.path.exists(os.path.join(config_path, "config.yml")):
-                config_file = "config.yml"
-            else:
-                raise ValueError("Cannot find config.yml. Please specify `config_file`")
-
-            config_path = os.path.join(config_path, config_file)
+        config_path = check_config_path(config_path)
 
         init_omegaconf()
 
@@ -149,11 +146,45 @@ class GlobalFlyConfig(metaclass=Singleton):
         self.config = None
 
 
+def get_config_path_from_argv(config_path):
+    argv_config_path = None
+    for idx, argv in enumerate(sys.argv[1:]):
+        if argv.startswith("--config_path"):
+            try:
+                argv_config_path = sys.argv[idx + 1]
+            except IndexError:
+                raise ValueError("Please provide the path after --config_path.")
+            argv_config_path = check_config_path(argv_config_path)
+            break
+
+    if config_path is not None:
+        logger.warning("Overriding the old config_path from --config_path!")
+
+    return argv_config_path
+
+
+def check_config_path(config_path) -> str:
+    # Search config file
+    if os.path.isdir(config_path):
+        if os.path.exists(os.path.join(config_path, "config.yaml")):
+            config_file = "config.yaml"
+        elif os.path.exists(os.path.join(config_path, "config.yml")):
+            config_file = "config.yml"
+        else:
+            raise ValueError("Cannot find config.yml. Please specify `config_file`")
+        config_path = os.path.join(config_path, config_file)
+    else:
+        if not os.path.isfile(config_path):
+            raise ValueError("Please provide a valid config path.")
+    return config_path
+
+
 def get_overrides_from_argv(arguments: List[str]) -> List:
     overrides = []
     for argv in arguments:
         if "=" in argv and not argv.startswith("-") and not argv.startswith("--"):
             overrides.append(argv)
+            # arguments.remove(argv)
     return overrides
 
 
