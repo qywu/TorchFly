@@ -157,10 +157,12 @@ def get_config_path_from_argv(config_path):
             argv_config_path = check_config_path(argv_config_path)
             break
 
-    if config_path is not None:
-        logger.warning("Overriding the old config_path from --config_path!")
-
-    return argv_config_path
+    if argv_config_path is None:
+        return config_path
+    else:
+        if config_path is not None:
+            logger.warning("Overriding the old config_path from --config_path!")
+        return argv_config_path
 
 
 def check_config_path(config_path) -> str:
