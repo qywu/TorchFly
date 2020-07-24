@@ -151,7 +151,7 @@ def get_config_path_from_argv(config_path):
     for idx, argv in enumerate(sys.argv[1:]):
         if argv.startswith("--config_path"):
             try:
-                argv_config_path = sys.argv[idx + 1]
+                argv_config_path = sys.argv[idx + 2]
             except IndexError:
                 raise ValueError("Please provide the path after --config_path.")
             argv_config_path = check_config_path(argv_config_path)
