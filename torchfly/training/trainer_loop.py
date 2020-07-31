@@ -167,6 +167,20 @@ class TrainerLoop:
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
 
+        # Start validation at the begining
+        if self.rank == 0:
+            if self.validation_dataloader is not None:
+                self.model.eval()
+                self.model.is_training = False
+                # BEGIN
+                self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
+
+                self.tmp_vars["validate_metrics"] = self.validate()
+
+                self.callback_handler.fire_event(Events.VALIDATE_END)
+                self.model.train()
+                self.model.is_training = True
+
         while True:
             self.callback_handler.fire_event(Events.EPOCH_BEGIN)
             self.train_epoch()
