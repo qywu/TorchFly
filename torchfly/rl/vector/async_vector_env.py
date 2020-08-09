@@ -159,24 +159,27 @@ class AsyncVectorEnv(VectorEnv):
             If `True`, then the `close` operation is forced and all processes
             are terminated.
         """
-        if terminate:
+        try:
+            if terminate:
+                for process in self.processes:
+                    if process.is_alive():
+                        process.terminate()
+            else:
+                for pipe in self.manager_pipes:
+                    if (pipe is not None) and (not pipe.closed):
+                        pipe.send(('close', None))
+                for pipe in self.manager_pipes:
+                    if (pipe is not None) and (not pipe.closed):
+                        pipe.recv()
+
+            for pipe in self.manager_pipes:
+                if pipe is not None:
+                    pipe.close()
+
             for process in self.processes:
-                if process.is_alive():
-                    process.terminate()
-        else:
-            for pipe in self.manager_pipes:
-                if (pipe is not None) and (not pipe.closed):
-                    pipe.send(('close', None))
-            for pipe in self.manager_pipes:
-                if (pipe is not None) and (not pipe.closed):
-                    pipe.recv()
-
-        for pipe in self.manager_pipes:
-            if pipe is not None:
-                pipe.close()
-
-        for process in self.processes:
-            process.join()
+                process.join()
+        except Exception as e:
+            print(f"{type(e)} has occured!")
 
     def _assert_is_running(self):
         if self.closed:
@@ -242,6 +245,8 @@ def worker(
                 raise NotImplementedError
     except KeyboardInterrupt:
         print('SubprocVecEnv worker: got KeyboardInterrupt')
+    except BrokenPipeError:
+        print(f"{ranks} having BrokenPipeError! Closing the environments.")
     finally:
         for env in envs:
             env.close()
