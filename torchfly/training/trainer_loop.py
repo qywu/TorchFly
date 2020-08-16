@@ -126,11 +126,15 @@ class TrainerLoop:
         self.configure_ddp()
         self.configure_callbacks()
 
+        self.log_keys = set()
         self.tmp_vars = {}
         self.callback_handler.fire_event(Events.INITIALIZE)
 
         # make sure the model has access to trainer info
         self.model.set_trainer(self)
+
+    def update_log_keys(self, keys: List[str]):
+        self.log_keys.update(keys)
 
     def configure_optimizers(self):
         return self.model.configure_optimizers(self.total_num_update_steps)
@@ -265,6 +269,10 @@ class TrainerLoop:
 
         log_dict = {"loss": loss.item() * self.gradient_accumulation_steps}
         log_dict["_lr"] = get_lr(self.optimizer)
+
+        for key in self.log_keys:
+            log_dict[key] = get_log_variable(results[key])
+
         return log_dict
 
     def loss_backward(self, loss):
@@ -377,3 +385,10 @@ class TrainerLoop:
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
+
+def get_log_variable(x):
+    if isinstance(x, torch.Tensor):
+        x = x.detach()
+        return x.item()
+    else:
+        raise NotImplementedError
