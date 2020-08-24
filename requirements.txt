@@ -1,9 +1,12 @@
-torch
-regex
-transformers
-tensorboard
-tqdm
 gdown
+nlp
+tensorboard
+torch
+transformers
+tqdm
+regex
 overrides
+omegaconf
 pyarrow
 colorlog
+hydra-core

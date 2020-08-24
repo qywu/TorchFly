@@ -122,8 +122,14 @@ class TrainerLoop:
         # Model is sent to GPU or CPU
         self.model = move_to_device(self.model, self.device)
 
-        self.configure_fp16()
-        self.configure_ddp()
+        # Mixed-Precision
+        if self.fp16 and self.config.training.num_gpus_per_node > 0:
+            self.configure_fp16()
+
+        # Distributed Training
+        if self.config.training.num_gpus_per_node > 1:
+            self.configure_ddp()
+
         self.configure_callbacks()
 
         self.log_keys = set()
@@ -154,18 +160,15 @@ class TrainerLoop:
             self.add_callback(gradient_clip_norm_callback)
 
     def configure_fp16(self):
-        # FP16
-        if self.fp16 and self.config.training.num_gpus_per_node > 0:
-            self.model, self.optimizers = amp.initialize(self.model, self.optimizers, opt_level=self.fp16_opt_level)
+        self.model, self.optimizers = amp.initialize(self.model, self.optimizers, opt_level=self.fp16_opt_level)
 
     def configure_ddp(self):
-        if self.config.training.num_gpus_per_node > 1:
-            # Distributed training (should be after apex fp16 initialization)
-            self.distributed_training = True
-            self.model = DistributedDataParallel(self.model, delay_allreduce=True)
-            # trainer.model = torch.nn.parallel.DistributedDataParallel(
-            #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
-            # )
+        # Distributed training (should be after apex fp16 initialization)
+        self.distributed_training = True
+        self.model = DistributedDataParallel(self.model, delay_allreduce=True)
+        # trainer.model = torch.nn.parallel.DistributedDataParallel(
+        #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
+        # )
 
     def train(self):
         # Training begins
@@ -223,11 +226,7 @@ class TrainerLoop:
 
             # Update the model
             if (self.global_step_count + 1) % self.gradient_accumulation_steps == 0:
-                self.callback_handler.fire_event(Events.STEP_BEGIN)
-                self.optimizer.step()
-                self.scheduler.step()
-                self.optimizer.zero_grad()
-                self.callback_handler.fire_event(Events.STEP_END)
+                self.step_update()
 
             self.callback_handler.fire_event(Events.BATCH_END)
 
@@ -248,11 +247,20 @@ class TrainerLoop:
                         self.model.train()
                         self.model.is_training = True
 
+            if self.config.training.num_gpus_per_node > 1:
+                torch.distributed.barrier()
             if self.global_step_count >= self.total_num_steps:
                 break
 
             self.global_step_count += 1
             self.local_step_count += 1
+
+    def step_update(self):
+        self.callback_handler.fire_event(Events.STEP_BEGIN)
+        self.optimizer.step()
+        self.scheduler.step()
+        self.optimizer.zero_grad()
+        self.callback_handler.fire_event(Events.STEP_END)
 
     def train_step(self, batch):
         self.optimizer = self.optimizers[0]
@@ -385,6 +393,7 @@ class TrainerLoop:
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
+
 
 def get_log_variable(x):
     if isinstance(x, torch.Tensor):
