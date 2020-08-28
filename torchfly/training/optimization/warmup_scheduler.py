@@ -93,3 +93,22 @@ class WarmupCosineWithHardRestartsSchedule(LambdaLR):
         if progress >= 1.0:
             return 0.0
         return max(0.0, 0.5 * (1. + math.cos(math.pi * ((float(self.cycles) * progress) % 1.0))))
+
+
+class WarmupCosineRestartWithDecay(LambdaLR):
+    """ Linear warmup and then cosine cycles with warmup restarts.
+    """
+    def __init__(self, optimizer, warmup_steps, t_total, cycles=1., last_epoch=-1):
+        self.warmup_steps = warmup_steps
+        self.t_total = t_total
+        self.cycles = cycles
+        super().__init__(optimizer, self.lr_lambda, last_epoch=last_epoch)
+
+    def lr_lambda(self, step):
+        if step < self.warmup_steps:
+            return float(step) / float(max(1, self.warmup_steps))
+        # progress after warmup
+        progress = float(step - self.warmup_steps) / float(max(1, self.t_total - self.warmup_steps))
+        if progress >= 1.0:
+            return 0.0
+        return max(0.0, 0.5 * (1. + math.cos(math.pi * ((float(self.cycles) * progress) % 1.0))))
