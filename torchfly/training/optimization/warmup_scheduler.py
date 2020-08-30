@@ -112,3 +112,42 @@ class WarmupCosineRestartWithDecay(LambdaLR):
         if progress >= 1.0:
             return 0.0
         return max(0.0, 0.5 * (1. + math.cos(math.pi * ((float(self.cycles) * progress) % 1.0))))
+
+
+class FlyAnnealing(LambdaLR):
+    def __init__(
+        self, optimizer, warmup_steps, cycle_steps, total_steps, power_decay=1, eta_min=0, last_epoch=-1, cycle_mult=1
+    ):
+        self.warmup_steps = warmup_steps
+        self.power_decay = power_decay
+        self.total_steps = total_steps
+        self.cycle_mult = cycle_mult
+        self.restart_every = cycle_steps
+        self.eta_min = eta_min
+        self.restarts = 0
+        self.restarted_at = 0
+        super().__init__(optimizer, last_epoch)
+
+    def restart(self):
+        self.restart_every *= self.cycle_mult
+        self.restarted_at = self.last_epoch
+
+    def cosine(self, base_lr):
+        return (
+            self.eta_min + 0.5 * (base_lr - self.eta_min) * (1 + math.cos(math.pi * self.step_n / self.restart_every))
+        )
+
+    @property
+    def step_n(self):
+        return self.last_epoch - self.restarted_at - self.warmup_steps
+
+    def get_lr(self):
+        if self.last_epoch < self.warmup_steps:
+            return [float(self.last_epoch) / float(max(1, self.warmup_steps)) * base_lr for base_lr in self.base_lrs]
+
+        if self.step_n >= self.restart_every:
+            self.restart()
+        return [
+            (1 - self.last_epoch / self.total_steps)**self.power_decay * self.cosine(base_lr)
+            for base_lr in self.base_lrs
+        ]

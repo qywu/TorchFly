@@ -155,9 +155,10 @@ class TrainerLoop:
             self.log_callback = LogHandler(self.config)
             self.add_callback(self.log_callback)
 
-        if self.config.training.optimization.max_gradient_norm > 0:
-            gradient_clip_norm_callback = GradientClipNorm(self.config)
-            self.add_callback(gradient_clip_norm_callback)
+        # No Longer handles the gradient clip here
+        # if self.config.training.optimization.max_gradient_norm > 0:
+        #     gradient_clip_norm_callback = GradientClipNorm(self.config)
+        #     self.add_callback(gradient_clip_norm_callback)
 
     def configure_fp16(self):
         self.model, self.optimizers = amp.initialize(self.model, self.optimizers, opt_level=self.fp16_opt_level)
