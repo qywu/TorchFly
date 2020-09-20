@@ -53,9 +53,6 @@ class Lamb(Optimizer):
                 if p.grad is None:
                     continue
 
-                # Perform stepweight decay
-                p.mul_(1 - group['lr'] * group['weight_decay'])
-
                 # Perform optimization step
                 grad = p.grad
                 if grad.is_sparse:
@@ -96,8 +93,14 @@ class Lamb(Optimizer):
 
                 w_norm = torch.norm(p)
                 g_norm = torch.norm(update)
-                trust_ratio = w_norm / g_norm if w_norm.item() != 0.0 or g_norm.item() != 0.0 else 1.0
+                if (w_norm < group['eps']).item() or (g_norm < group['eps']).item():
+                    trust_ratio = 1.0
+                else:
+                    trust_ratio = w_norm / g_norm
 
                 p.add_(-group['lr'] * trust_ratio * update)
+
+                # weight decay
+                p.add_(-group['lr'] * group['weight_decay'])
 
         return loss
