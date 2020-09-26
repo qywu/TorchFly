@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import subprocess
 from omegaconf import OmegaConf
 from torchfly.flyconfig import GlobalFlyConfig
@@ -28,7 +29,7 @@ def launch_distributed(config_path: str, worker_fn: Callable, *args, **kwargs):
 
         # TODO: the port should be able to be adjusted manually
         current_env["MASTER_ADDR"] = "127.0.0.1"
-        current_env["MASTER_PORT"] = "29500"
+        current_env["MASTER_PORT"] = f"{29500 + random.randint((1), 1000)}"
 
         current_env["WORLD_SIZE"] = str(num_gpus_per_node)
         current_env["FLY_DISTRIBUTED_INIT"] = str(1)
