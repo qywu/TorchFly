@@ -85,40 +85,42 @@ class Checkpoint(Callback):
                 self.checkpoint_in_seconds = True
 
         # Search for the latest checkpoint
-        logger.info("Try to restore the latest checkpoint")
         if self.config.training.resume.resume:
+            logger.info("Try to restore the latest checkpoint")
             self.restored_states = self.checkpointer.restore_latest_checkpoint()
             if self.restored_states:
                 self.checkpointer.load_state_dict(self.restored_states[1]["checkpointer_state_dict"])
+            else:
+                logger.warn("Fail to find any checkpoint! Start new training!")
         else:
             self.restored_states = None
 
-    @handle_event(Events.TRAIN_BEGIN, priority=129)
-    def fix_amp_in_train(self, trainer: Trainer):
-        if self.restored_states:
-            # make sure optimzier state is empty
-            for optimizer in trainer.optimizers:
-                optimizer.state = {}
+    # @handle_event(Events.TRAIN_BEGIN, priority=129)
+    # def fix_amp_in_train(self, trainer: Trainer):
+    #     if self.restored_states:
+    #         # make sure optimzier state is empty
+    #         for optimizer in trainer.optimizers:
+    #             optimizer.state = {}
 
-    @handle_event(Events.BACKWARD_END, priority=100)
-    def fix_amp_in_backward(self, trainer: Trainer):
-        if self.restored_states:
-            if not self.fix_amp_bug:
-                # We load the optimizer's states here
-                if self.config.training.resume.resume and self.config.training.resume.resume_optimizers:
-                    for idx, optimizer in enumerate(trainer.optimizers):
-                        try:
-                            optimizer.load_state_dict(self.restored_states[1]["optimizers_state_dict"][idx])
-                        except:
-                            if self.rank == 0:
-                                logger.warning(f"Cannot Load Optimizer {idx}'s State!")
+    # @handle_event(Events.BACKWARD_END, priority=100)
+    # def fix_amp_in_backward(self, trainer: Trainer):
+    #     if self.restored_states:
+    #         if not self.fix_amp_bug:
+    #             # We load the optimizer's states here
+    #             if self.config.training.resume.resume and self.config.training.resume.resume_optimizers:
+    #                 for idx, optimizer in enumerate(trainer.optimizers):
+    #                     try:
+    #                         optimizer.load_state_dict(self.restored_states[1]["optimizers_state_dict"][idx])
+    #                     except:
+    #                         if self.rank == 0:
+    #                             logger.warning(f"Cannot Load Optimizer {idx}'s State!")
 
-                if self.rank == 0:
-                    logger.warning(
-                        "A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint"
-                    )
-                self.fix_amp_bug = True
-            self.restored_states = None
+    #             if self.rank == 0:
+    #                 logger.warning(
+    #                     "A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint"
+    #                 )
+    #             self.fix_amp_bug = True
+    #         self.restored_states = None
 
     # @handle_event(Events.TRAIN_BEGIN, priority=170)
     # def load_trainer_counts(self, trainer: Trainer):
@@ -154,10 +156,12 @@ class Checkpoint(Callback):
                     self._save_trainer_state(trainer)
 
     def _save_trainer_state(self, trainer: Trainer):
+        
         trainer_state_dict = trainer.get_trainer_state()
         self.checkpointer.save_checkpoint(
             "iter_" + str(trainer.global_step_count), trainer.get_model_state(), trainer_state_dict
         )
+        logger.info(f"Saved iteration {str(trainer.global_step_count)} checkpoint!")
 
     def state_dict(self):
         return self.checkpointer.state_dict()

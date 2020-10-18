@@ -7,7 +7,7 @@ import datetime
 import collections
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from colorlog import colorlog
 import atexit
 
@@ -100,7 +100,7 @@ class LogHandler(Callback):
 
     @handle_event(Events.INITIALIZE, priority=100)
     def report_init_config(self, trainer: Trainer):
-        logger.info(self.config.pretty())
+        logger.info(OmegaConf.to_yaml(self.config))
 
     # @handle_event(Events.TRAIN_BEGIN, priority=195)
     # def setup_logging(self, trainer: Trainer):

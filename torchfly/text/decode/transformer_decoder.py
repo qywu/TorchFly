@@ -484,7 +484,7 @@ class TransformerDecoder:
                 )
 
             # shape (batch_size, num_beams)
-            beam_indices = torch.div(predicted_tokens, vocab_size).cpu()
+            beam_indices = torch.floor_divide(predicted_tokens, vocab_size).cpu()
             beam_indices_1d = (
                 beam_indices + (torch.arange(self.batch_size) * self.num_beams).unsqueeze(1).expand(-1, self.num_beams)
             )

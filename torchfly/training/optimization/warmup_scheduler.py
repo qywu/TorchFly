@@ -134,10 +134,9 @@ class FlyAnnealing(LambdaLR):
 
     def cosine(self, base_lr):
         return (
-            self.eta_min + 0.5 * (base_lr - self.eta_min) * (1 + math.cos(math.pi * self.step_n / self.restart_every))
+            self.eta_min + 0.5 * (base_lr - self.eta_min) * (1 + math.cos(math.pi * self.step_n() / self.restart_every))
         )
 
-    @property
     def step_n(self):
         return self.last_epoch - self.restarted_at - self.warmup_steps
 
@@ -145,7 +144,7 @@ class FlyAnnealing(LambdaLR):
         if self.last_epoch < self.warmup_steps:
             return [float(self.last_epoch) / float(max(1, self.warmup_steps)) * base_lr for base_lr in self.base_lrs]
 
-        if self.step_n >= self.restart_every:
+        if self.step_n() >= self.restart_every:
             self.restart()
         return [
             (1 - self.last_epoch / self.total_steps)**self.power_decay * self.cosine(base_lr)

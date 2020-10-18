@@ -48,7 +48,6 @@ def move_to_device(data, device, exclude_keys=None):
     elif isinstance(data, int) or isinstance(data, float):
         data = data
     else:
-        logger.error(f"{type(data)} cannot be sent to device")
-        raise NotImplementedError
-
+        # logger.warning(f"{type(data)} cannot be sent to device")
+        data = data
     return data

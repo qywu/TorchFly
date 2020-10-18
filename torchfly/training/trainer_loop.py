@@ -71,6 +71,7 @@ class TrainerLoop:
 
         self.total_num_update_steps = int(config.training.total_num.update_steps)
         self.total_num_steps = self.total_num_update_steps * int(self.gradient_accumulation_steps)
+        
         self.total_num_epochs = int(self.config.training.total_num.epochs)
 
         # Train in epochs or steps
@@ -88,6 +89,7 @@ class TrainerLoop:
                 self.epoch_num_training_steps = len(self.train_dataloader)
                 self.total_num_training_steps = self.epoch_num_training_steps * self.total_num_epochs
                 self.total_num_update_steps = self.total_num_training_steps // self.gradient_accumulation_steps
+                self.total_num_steps = self.total_num_training_steps
             except TypeError:
                 # connot set the number of total_num_epoch
                 # because it is impossible to know
@@ -97,7 +99,11 @@ class TrainerLoop:
             self.epoch_num_training_steps = self.total_num_update_steps
 
         # Validation steps interval
-        self.validation_after_num_steps = config.training.validation.after_num_steps
+        if config.training.validation.after_num_steps is None:
+            self.validation_after_num_steps = 0
+        else:
+            self.validation_after_num_steps = config.training.validation.after_num_steps
+        
         if self.validation_steps_interval < 0:
             self.validation_steps_interval = self.epoch_num_training_steps - 1
 

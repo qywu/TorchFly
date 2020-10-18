@@ -118,21 +118,24 @@ class GlobalFlyConfig(metaclass=Singleton):
             # save the entire config directory
             cwd = self.system_config.flyconfig.runtime.cwd
             dirpath = os.path.join(cwd, os.path.dirname(config_path))
-            shutil.copytree(dirpath, os.path.join(self.system_config.flyconfig.output_subdir, "config"))
+            dst_config_path = os.path.join(self.system_config.flyconfig.output_subdir, "config")
 
-            # save system config
-            _save_config(
-                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
-                config=self.system_config
-            )
+            if not os.path.exists(dst_config_path):
+                shutil.copytree(dirpath, dst_config_path)
 
-            # save user config
-            _save_config(
-                filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"),
-                config=self.user_config
-            )
+                # save system config
+                _save_config(
+                    filepath=os.path.join(self.system_config.flyconfig.output_subdir, "flyconfig.yml"),
+                    config=self.system_config
+                )
 
-            logger.info("\n\nConfiguration:\n" + self.user_config.pretty())
+                # save user config
+                _save_config(
+                    filepath=os.path.join(self.system_config.flyconfig.output_subdir, "config.yml"),
+                    config=self.user_config
+                )
+
+                logger.info("\n\nConfiguration:\n" + OmegaConf.to_yaml(self.user_config))
 
         self.initialized = True
 

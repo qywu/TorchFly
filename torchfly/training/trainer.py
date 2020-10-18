@@ -18,8 +18,10 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.optim import Optimizer
 import torch.multiprocessing as multiprocessing
 
+
+from torchfly.training.trainer_loop import TrainerLoop
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
-from torchfly.training.callbacks import TrainHandler, LogHandler, GradientClipNorm, Checkpoint, PlasmaHandler
+from torchfly.training.callbacks import TrainHandler, LogHandler, GradientClipNorm, Checkpoint
 from torchfly.training.checkpointer import Checkpointer
 from torchfly.training.optimization import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
     WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule
@@ -82,7 +84,7 @@ class Trainer:
         callbacks.append(LogHandler(self.config))
         callbacks.append(GradientClipNorm(self.config))
         callbacks.append(Checkpoint(self.config))
-        callbacks.append(PlasmaHandler(self.config))
+        # callbacks.append(PlasmaHandler(self.config))
         return callbacks
 
     def train(self) -> Dict[str, Any]:
