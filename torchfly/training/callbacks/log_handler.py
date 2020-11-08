@@ -265,7 +265,7 @@ class LogHandler(Callback):
             logging.shutdown()
             logger.handlers.clear()
 
-            if self.tensorboard:
+            if hasattr(self, "tensorboard"):
                 self.tensorboard.close()
 
     def state_dict(self):

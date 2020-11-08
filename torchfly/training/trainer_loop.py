@@ -12,7 +12,7 @@ from apex.parallel import DistributedDataParallel, Reducer
 
 # local imports
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
-from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint
+from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint, Inference
 from torchfly.common import move_to_device, get_rank
 from torchfly.training import FlyModel
 
@@ -64,7 +64,6 @@ class TrainerLoop:
 
         # constants
         self.gradient_accumulation_steps = config.training.optimization.gradient_accumulation_steps
-        self.validation_steps_interval = config.training.validation.steps_interval
         self.fp16 = config.training.optimization.fp16
         self.fp16_opt_level = config.training.optimization.fp16_opt_level
         self.distributed_training = False
@@ -97,15 +96,6 @@ class TrainerLoop:
                 raise NotImplementedError("Please specify the `total_num_epochs` or `total_num_update_steps`!")
         else:
             self.epoch_num_training_steps = self.total_num_update_steps
-
-        # Validation steps interval
-        if config.training.validation.after_num_steps is None:
-            self.validation_after_num_steps = 0
-        else:
-            self.validation_after_num_steps = config.training.validation.after_num_steps
-        
-        if self.validation_steps_interval < 0:
-            self.validation_steps_interval = self.epoch_num_training_steps - 1
 
         # local variables
         self.global_step_count = 0
@@ -161,6 +151,9 @@ class TrainerLoop:
             self.log_callback = LogHandler(self.config)
             self.add_callback(self.log_callback)
 
+            self.inference_callback = Inference(self.config)
+            self.add_callback(self.inference_callback)
+
         # No Longer handles the gradient clip here
         # if self.config.training.optimization.max_gradient_norm > 0:
         #     gradient_clip_norm_callback = GradientClipNorm(self.config)
@@ -180,20 +173,6 @@ class TrainerLoop:
     def train(self):
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
-
-        # Start validation at the begining
-        if self.rank == 0:
-            if self.validation_dataloader is not None:
-                self.model.eval()
-                self.model.is_training = False
-                # BEGIN
-                self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
-
-                self.tmp_vars["validate_metrics"] = self.validate()
-
-                self.callback_handler.fire_event(Events.VALIDATE_END)
-                self.model.train()
-                self.model.is_training = True
 
         while True:
             self.callback_handler.fire_event(Events.EPOCH_BEGIN)
@@ -237,27 +216,11 @@ class TrainerLoop:
 
             self.callback_handler.fire_event(Events.BATCH_END)
 
-            # Only rank 0 can run the validation dataset
-            if self.rank == 0:
-                if self.global_step_count > self.validation_after_num_steps and \
-                    ((self.global_step_count + 1) % self.validation_steps_interval == 0):
-
-                    if self.validation_dataloader is not None:
-                        self.model.eval()
-                        self.model.is_training = False
-                        # BEGIN
-                        self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
-
-                        self.tmp_vars["validate_metrics"] = self.validate()
-
-                        self.callback_handler.fire_event(Events.VALIDATE_END)
-                        self.model.train()
-                        self.model.is_training = True
+            if self.global_step_count >= self.total_num_steps:
+                break
 
             if self.config.training.num_gpus_per_node > 1:
                 torch.distributed.barrier()
-            if self.global_step_count >= self.total_num_steps:
-                break
 
             self.global_step_count += 1
             self.local_step_count += 1
@@ -371,7 +334,7 @@ class TrainerLoop:
                 try:
                     callback.load_state_dict(trainer_state_dict[str(type(callback))])
                 except:
-                    logger.error(f"{type(callback)} seems not to exist!")
+                    logger.error(f"{type(callback)}'s state seems not to exist!")
 
     def get_trainer_state(self):
         trainer_state_dict = {
