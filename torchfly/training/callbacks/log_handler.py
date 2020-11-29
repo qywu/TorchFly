@@ -176,13 +176,13 @@ class LogHandler(Callback):
 
     @handle_event(Events.VALIDATE_BEGIN)
     def info_valid_begin(self, trainer: Trainer):
-        if self.rank == 0:
+        if self.rank == 0 and trainer.validation_dataloader is not None:
             updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
             logger.info(f"Steps {updated_steps}: Validation Begins:")
 
     @handle_event(Events.VALIDATE_END)
-    def show_metrics(self, trainer: Trainer):
-        if self.rank == 0:
+    def show_valid_metrics(self, trainer: Trainer):
+        if self.rank == 0 and trainer.validation_dataloader is not None:
             updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
 
             if len(trainer.tmp_vars["validate_metrics"].items()) == 0:
@@ -198,6 +198,31 @@ class LogHandler(Callback):
                 # tensorboard
                 if isinstance(value, float):
                     self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
+
+    @handle_event(Events.TEST_BEGIN)
+    def info_test_begin(self, trainer: Trainer):
+        if self.rank == 0 and trainer.test_dataloader is not None:
+            updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
+            logger.info(f"Steps {updated_steps}: Test Begins:")
+
+    @handle_event(Events.TEST_END)
+    def show_test_metrics(self, trainer: Trainer):
+        if self.rank == 0 and trainer.test_dataloader is not None:
+            updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
+
+            if len(trainer.tmp_vars["test_metrics"].items()) == 0:
+                logger.warn(f"No metrics to report! Check if `get_metrics` is implemented.")
+
+            for metric_name, value in trainer.tmp_vars["test_metrics"].items():
+                metric_name = metric_name[0].upper() + metric_name[1:]
+                if not self.training_in_epoch:
+                    logger.info(f"Steps {updated_steps}: Test {metric_name} {value:4.4f}")
+                else:
+                    logger.info(f"Epoch {trainer.epochs_trained + 1}: Test {metric_name} {value:4.4f}")
+
+                # tensorboard
+                if isinstance(value, float):
+                    self.tensorboard.add_scalar("test/" + metric_name, value, global_step=trainer.global_step_count)
 
     def log(self, trainer: Trainer, log_dict: Dict[str, float]):
         """

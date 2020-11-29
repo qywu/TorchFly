@@ -24,5 +24,9 @@ class Events:
     VALIDATE_BEGIN = "VALIDATE_BEGIN"
     # Called after the validation
     VALIDATE_END = "VALIDATE_END"
+    # Called before the validation
+    TEST_BEGIN = "TEST_BEGIN"
+    # Called after the validation
+    TEST_END = "TEST_END"
     # Useful for cleaning up things and saving files/models.
     TRAIN_END = "TRAIN_END"

@@ -70,7 +70,7 @@ class TrainerLoop:
 
         self.total_num_update_steps = int(config.training.total_num.update_steps)
         self.total_num_steps = self.total_num_update_steps * int(self.gradient_accumulation_steps)
-        
+
         self.total_num_epochs = int(self.config.training.total_num.epochs)
 
         # Train in epochs or steps
@@ -267,6 +267,27 @@ class TrainerLoop:
         # No gradient is needed for validation
         with torch.no_grad():
             for batch in iter(self.validation_dataloader):
+                # send to cuda device
+                batch = move_to_device(batch, self.device)
+
+                if self.distributed_training:
+                    self.model.module.predict(batch)
+                else:
+                    self.model.predict(batch)
+        # END
+        # get metrics
+        if self.distributed_training:
+            metrics = self.model.module.get_metrics(reset=True)
+        else:
+            metrics = self.model.get_metrics(reset=True)
+        return metrics
+
+    def test(self):
+        # Validation
+        self.model.eval()
+        # No gradient is needed for test
+        with torch.no_grad():
+            for batch in iter(self.test_dataloader):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
