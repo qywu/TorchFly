@@ -322,10 +322,6 @@ class TrainerLoop:
 
         # Resume the training state
         if self.config.training.resume.resume:
-            # AMP State
-            if self.config.training.optimization.fp16:
-                amp.load_state_dict(trainer_state_dict["amp_state_dict"])
-
             # Scheduler States
             if self.config.training.resume.resume_schedulers:
                 for idx, scheduler in enumerate(self.schedulers):
@@ -367,9 +363,6 @@ class TrainerLoop:
             "cpu_rng_state": torch.get_rng_state(),
             "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }
-        # save amp states
-        if self.config.training.optimization.fp16:
-            trainer_state_dict["amp_state_dict"] = amp.state_dict()
 
         # All Callbacks
         for callback in self.callback_handler.callbacks:
