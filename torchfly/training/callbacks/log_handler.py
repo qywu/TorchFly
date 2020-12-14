@@ -240,7 +240,7 @@ class LogHandler(Callback):
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
 
-        speed = elapsed_steps * self.config.training.batch_size * self.config.training.num_gpus_per_node / iter_elapsed_time
+        speed = elapsed_steps * self.config.training.batch_size * trainer.world_size / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
         if not self.training_in_epoch:
