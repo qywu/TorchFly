@@ -55,9 +55,9 @@ class Inference(Callback):
         if self.config.training.inference.steps_interval > 0:
             self.inference_in_seconds = False
         else:
-            if not hasattr(
+            if (not hasattr(
                 self.config.training.inference, "seconds_interval"
-            ) or self.config.training.inference.seconds_interval < 0:
+            )) or self.config.training.inference.seconds_interval < 0:
                 self.inference_in_seconds = False
                 # validate for every epoch
                 self.config.training.inference.steps_interval = trainer.epoch_num_training_steps - 1
@@ -106,7 +106,7 @@ class Inference(Callback):
             trainer.model.train()
             trainer.model.is_training = True
 
-        if trainer.validation_dataloader is not None:
+        if trainer.test_dataloader is not None:
             trainer.model.eval()
             trainer.model.is_training = False
 

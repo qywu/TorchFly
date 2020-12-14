@@ -79,7 +79,7 @@ class FlyModel(nn.Module):
                 optimizer_grouped_parameters, lr=lr, betas=betas, max_grad_norm=max_gradient_norm
             )
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!")
 
         scheduler_name = self.config.training.optimization.warmup.scheduler_name
         warmup_steps = self.config.training.optimization.warmup.warmup_steps

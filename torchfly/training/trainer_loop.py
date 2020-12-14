@@ -2,9 +2,13 @@ from typing import Any, List, Dict, Iterator, Callable, Iterable
 import os
 import random
 import numpy as np
+import tqdm
 import torch
 import torch.nn as nn
+import torch.distributed as dist
+from torch.cuda.amp import GradScaler, autocast
 from omegaconf import DictConfig
+import socket
 import apex
 from apex import amp
 from apex.parallel import DistributedDataParallel, Reducer
@@ -13,7 +17,7 @@ from apex.parallel import DistributedDataParallel, Reducer
 # local imports
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
 from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint, Inference
-from torchfly.common import move_to_device, get_rank
+from torchfly.common import move_to_device
 from torchfly.training import FlyModel
 
 import logging
@@ -41,22 +45,31 @@ class TrainerLoop:
         assert isinstance(model, FlyModel)
 
         self.config = config
-        self.rank, self.local_rank = get_rank()
+        self.rank = int(os.environ.get("RANK", 0))
+        self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        self.world_size = int(os.environ.get("WORLD_SIZE", 1))
 
         # Distributed
-        if self.config.training.num_gpus_per_node > 1:
-            # Init distributed
-            # TODO: multi-node multi-gpu training
+        if self.world_size > 1:
+            # Initialize distributed training
             torch.distributed.init_process_group(
-                backend="nccl", rank=self.rank, world_size=self.config.training.num_gpus_per_node * 1
+                backend="nccl", rank=self.rank, world_size=self.world_size, init_method='env://'
             )
+            self.node_rank = os.environ.get("NODE_RANK", "UNK")
+            print(
+                f"Initialized Rank:{dist.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
+            )
+
+        print("Starting")
 
         # configure distributed training
         self.model = model
 
         self.train_dataloader = train_dataloader_fn(config)
-        self.validation_dataloader: Iterable = valid_dataloader_fn(config) if valid_dataloader_fn else None
-        self.test_dataloader = test_dataloader_fn(config) if test_dataloader_fn else None
+
+        if self.rank == 0:
+            self.validation_dataloader: Iterable = valid_dataloader_fn(config) if valid_dataloader_fn else None
+            self.test_dataloader = test_dataloader_fn(config) if test_dataloader_fn else None
 
         self.callback_handler = CallbackHandler(
             config, trainer=self, callbacks=[], verbose=config.training.logging.level == "DEBUG"
@@ -65,7 +78,7 @@ class TrainerLoop:
         # constants
         self.gradient_accumulation_steps = config.training.optimization.gradient_accumulation_steps
         self.fp16 = config.training.optimization.fp16
-        self.fp16_opt_level = config.training.optimization.fp16_opt_level
+        # self.fp16_opt_level = config.training.optimization.fp16_opt_level
         self.distributed_training = False
 
         self.total_num_update_steps = int(config.training.total_num.update_steps)
@@ -104,10 +117,8 @@ class TrainerLoop:
 
         # set cuda device
         if config.training.num_gpus_per_node > 1:
-            torch.cuda.set_device(self.rank)
+            torch.cuda.set_device(self.local_rank)
             self.device = torch.device("cuda", self.local_rank)
-        elif config.training.num_gpus_per_node == 1:
-            self.device = torch.device("cuda")
         else:
             self.device = torch.device("cpu")
 
@@ -123,7 +134,7 @@ class TrainerLoop:
             self.configure_fp16()
 
         # Distributed Training
-        if self.config.training.num_gpus_per_node > 1:
+        if self.world_size > 1:
             self.configure_ddp()
 
         self.configure_callbacks()
@@ -154,13 +165,8 @@ class TrainerLoop:
             self.inference_callback = Inference(self.config)
             self.add_callback(self.inference_callback)
 
-        # No Longer handles the gradient clip here
-        # if self.config.training.optimization.max_gradient_norm > 0:
-        #     gradient_clip_norm_callback = GradientClipNorm(self.config)
-        #     self.add_callback(gradient_clip_norm_callback)
-
     def configure_fp16(self):
-        self.model, self.optimizers = amp.initialize(self.model, self.optimizers, opt_level=self.fp16_opt_level)
+        self.loss_scaler = GradScaler()
 
     def configure_ddp(self):
         # Distributed training (should be after apex fp16 initialization)
@@ -192,12 +198,6 @@ class TrainerLoop:
         # Training ends
         self.callback_handler.fire_event(Events.TRAIN_END)
 
-        # Only rank 0 can run the test dataset
-        if self.rank == 0:
-            if self.test_dataloader:
-                # TODO: Implement test_dataloader
-                raise NotImplementedError
-
     def train_epoch(self):
         self.optimizer = self.optimizers[0]
         self.scheduler = self.schedulers[0]
@@ -227,14 +227,32 @@ class TrainerLoop:
 
     def step_update(self):
         self.callback_handler.fire_event(Events.STEP_BEGIN)
-        self.optimizer.step()
+
+        if self.fp16:
+            self.loss_scaler.unscale_(self.optimizer)
+
+        if self.config.training.optimization.max_gradient_norm > 0:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.training.optimization.max_gradient_norm)
+
+        if self.fp16:
+            self.loss_scaler.step(self.optimizer)
+            self.loss_scaler.update()
+        else:
+            self.optimizer.step()
+
         self.scheduler.step()
         self.optimizer.zero_grad()
         self.callback_handler.fire_event(Events.STEP_END)
 
     def train_step(self, batch):
         self.optimizer = self.optimizers[0]
-        results = self.model(batch)
+
+        if self.fp16:
+            with autocast():
+                results = self.model(batch)
+        else:
+            results = self.model(batch)
+
         loss = results["loss"]
 
         if self.gradient_accumulation_steps > 1:
@@ -256,8 +274,7 @@ class TrainerLoop:
     def loss_backward(self, loss):
         # Loss backward
         if self.fp16:
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
+            self.loss_scaler.scale(loss).backward()
         else:
             loss.backward()
 
@@ -266,7 +283,7 @@ class TrainerLoop:
         self.model.eval()
         # No gradient is needed for validation
         with torch.no_grad():
-            for batch in iter(self.validation_dataloader):
+            for batch in tqdm.tqdm(self.validation_dataloader):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
@@ -287,7 +304,7 @@ class TrainerLoop:
         self.model.eval()
         # No gradient is needed for test
         with torch.no_grad():
-            for batch in iter(self.test_dataloader):
+            for batch in tqdm.tqdm(self.test_dataloader):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
@@ -331,14 +348,9 @@ class TrainerLoop:
                         if self.rank == 0:
                             logger.warning(f"Cannot Load Scheduler {idx}'s State!")
 
-            # Optimizer States - We cannot load optimizers here because of an amp error
-            # if self.config.training.resume.resume_optimizers:
-            #     for idx, optimizer in enumerate(self.optimizers):
-            #         try:
-            #             optimizer.load_state_dict(trainer_state_dict["optimizers_state_dict"][idx])
-            #         except:
-            #             if self.rank == 0:
-            #                 logger.warning(f"Cannot Load Optimizer {idx}'s State!")
+            # save amp states
+            if self.config.training.optimization.fp16:
+                self.loss_scaler.load_state_dict(trainer_state_dict["amp_state_dict"])
 
             # Random States
             if self.config.training.resume.resume_rng_state:
@@ -351,11 +363,11 @@ class TrainerLoop:
                 try:
                     callback.load_state_dict(trainer_state_dict[str(type(callback))])
                 except:
-                    logger.error(f"{type(callback)}'s state seems not to exist!")
+                    logger.error(f"{type(callback)} seems not to exist in the checkpoint state!")
 
     def get_trainer_state(self):
         trainer_state_dict = {
-            "epochs_trained": self.epochs_trained + 1,
+            "epochs_trained": self.epochs_trained,
             "global_step_count": self.global_step_count,
             "local_step_count": self.local_step_count,
             "optimizers_state_dict": [optimizer.state_dict() for optimizer in self.optimizers],
@@ -363,6 +375,10 @@ class TrainerLoop:
             "cpu_rng_state": torch.get_rng_state(),
             "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }
+
+        # save amp states
+        if self.config.training.optimization.fp16:
+            trainer_state_dict["amp_state_dict"] = self.loss_scaler.state_dict()
 
         # All Callbacks
         for callback in self.callback_handler.callbacks:
