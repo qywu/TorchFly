@@ -283,7 +283,9 @@ class TrainerLoop:
         self.model.eval()
         # No gradient is needed for validation
         with torch.no_grad():
-            for batch in tqdm.tqdm(self.validation_dataloader):
+            pbar = tqdm.tqdm(self.validation_dataloader)
+            pbar.mininterval = 5.0
+            for batch in pbar:
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
@@ -304,7 +306,9 @@ class TrainerLoop:
         self.model.eval()
         # No gradient is needed for test
         with torch.no_grad():
-            for batch in tqdm.tqdm(self.test_dataloader):
+            pbar = tqdm.tqdm(self.test_dataloader)
+            pbar.mininterval = 5.0
+            for batch in pbar:
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
 
