@@ -17,25 +17,6 @@ __all__ = ["Checkpoint"]
 Trainer = Any
 
 
-def get_rank():
-    """
-    We use environment variables to pass the rank info
-    Returns:
-        rank: rank in the multi-node system 
-        local_rank: local rank on a node
-    """
-    if "RANK" not in os.environ or "LOCAL_RANK" not in os.environ:
-        rank = 0
-        local_rank = 0
-        os.environ["RANK"] = str(0)
-        os.environ["LOCAL_RANK"] = str(0)
-    else:
-        rank = int(os.environ["RANK"])
-        local_rank = int(os.environ["LOCAL_RANK"])
-
-    return rank, local_rank
-
-
 @Callback.register("checkpoint")
 class Checkpoint(Callback):
     """
@@ -48,7 +29,7 @@ class Checkpoint(Callback):
         if self.checkpoint_dir is None:
             self.checkpoint_dir = "Checkpoints"
 
-        self.rank, _ = get_rank()
+        self.rank = int(os.environ.get("RANK", 0))
         self.fix_amp_bug = False
 
         if self.config.training.checkpointing.async_save is None:
@@ -89,46 +70,13 @@ class Checkpoint(Callback):
             logger.info("Try to restore the latest checkpoint")
             self.restored_states = self.checkpointer.restore_latest_checkpoint()
             if self.restored_states:
+                file_path = self.restored_states[2]
+                print(f"RANK {self.rank} has found checkpoint at {file_path}!")
                 self.checkpointer.load_state_dict(self.restored_states[1]["checkpointer_state_dict"])
             else:
                 logger.warn("Fail to find any checkpoint! Start new training!")
         else:
             self.restored_states = None
-
-    # @handle_event(Events.TRAIN_BEGIN, priority=129)
-    # def fix_amp_in_train(self, trainer: Trainer):
-    #     if self.restored_states:
-    #         # make sure optimzier state is empty
-    #         for optimizer in trainer.optimizers:
-    #             optimizer.state = {}
-
-    # @handle_event(Events.BACKWARD_END, priority=100)
-    # def fix_amp_in_backward(self, trainer: Trainer):
-    #     if self.restored_states:
-    #         if not self.fix_amp_bug:
-    #             # We load the optimizer's states here
-    #             if self.config.training.resume.resume and self.config.training.resume.resume_optimizers:
-    #                 for idx, optimizer in enumerate(trainer.optimizers):
-    #                     try:
-    #                         optimizer.load_state_dict(self.restored_states[1]["optimizers_state_dict"][idx])
-    #                     except:
-    #                         if self.rank == 0:
-    #                             logger.warning(f"Cannot Load Optimizer {idx}'s State!")
-
-    #             if self.rank == 0:
-    #                 logger.warning(
-    #                     "A Stupid Solution just to fix AMP bug! You only do it once everytime loading a checkpoint"
-    #                 )
-    #             self.fix_amp_bug = True
-    #         self.restored_states = None
-
-    # @handle_event(Events.TRAIN_BEGIN, priority=170)
-    # def load_trainer_counts(self, trainer: Trainer):
-    #     # Resume the training
-    #     if self.restored_states:
-    #         trainer.epochs_trained = self.restored_states[1]["epochs_trained"]
-    #         trainer.global_step_count = self.restored_states[1]["global_step_count"]
-    #         trainer.local_step_count = self.restored_states[1]["local_step_count"]
 
     @handle_event(Events.TRAIN_BEGIN, priority=170)
     def load_checkpoint(self, trainer: Trainer):
@@ -140,6 +88,9 @@ class Checkpoint(Callback):
                 trainer.set_model_state(self.restored_states[0])
             # Everything Else
             trainer.set_trainer_state(self.restored_states[1])
+
+            file_path = self.restored_states[2]
+            print(f"RANK {self.rank} has loaded checkpoint at {file_path}!")
 
     @handle_event(Events.BATCH_END)
     def save_checkpoint(self, trainer: Trainer):
@@ -156,7 +107,7 @@ class Checkpoint(Callback):
                     self._save_trainer_state(trainer)
 
     def _save_trainer_state(self, trainer: Trainer):
-        
+
         trainer_state_dict = trainer.get_trainer_state()
         self.checkpointer.save_checkpoint(
             "iter_" + str(trainer.global_step_count), trainer.get_model_state(), trainer_state_dict

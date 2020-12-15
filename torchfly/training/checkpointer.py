@@ -106,7 +106,7 @@ class Checkpointer:
 
                 trainer_state_dict["file_path"] = latest_file_path
                 logger.info(f"Loading checkpoint {latest_file_path}")
-                return (model_state_dict, trainer_state_dict)
+                return (model_state_dict, trainer_state_dict, latest_file_path)
             except (pickle.UnpicklingError, RuntimeError, TypeError, FileNotFoundError):
                 # skip and remove the corrupted files
                 logger.info(f"Checkpoint {trainer_state_file} is corrupted. It will be deleted.")

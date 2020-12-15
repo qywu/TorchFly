@@ -116,7 +116,7 @@ class TrainerLoop:
         self.local_step_count = 0
 
         # set cuda device
-        if config.training.num_gpus_per_node > 1:
+        if config.training.num_gpus_per_node > 0:
             torch.cuda.set_device(self.local_rank)
             self.device = torch.device("cuda", self.local_rank)
         else:
@@ -130,7 +130,9 @@ class TrainerLoop:
         self.model = move_to_device(self.model, self.device)
 
         # Mixed-Precision
-        if self.fp16 and self.config.training.num_gpus_per_node > 0:
+        if self.fp16:
+            if self.config.training.num_gpus_per_node == 0:
+                raise NotImplementedError("For mixed precision training, you need to use GPU!")
             self.configure_fp16()
 
         # Distributed Training
@@ -158,6 +160,7 @@ class TrainerLoop:
         self.checkpoint_callback = Checkpoint(self.config)
         self.add_callback(self.checkpoint_callback)
 
+        # For logging and inference, use rank 0 by default
         if self.rank == 0:
             self.log_callback = LogHandler(self.config)
             self.add_callback(self.log_callback)

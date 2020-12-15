@@ -124,4 +124,4 @@ class Inference(Callback):
         return state_dict
 
     def load_state_dict(self, state_dict):
-        self.cumulative_time = state_dict["started"]
+        self.started = state_dict["started"]
