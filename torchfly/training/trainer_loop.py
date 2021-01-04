@@ -16,7 +16,7 @@ from apex.parallel import DistributedDataParallel, Reducer
 
 # local imports
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
-from torchfly.training.callbacks import LogHandler, GradientClipNorm, Checkpoint, Inference
+from torchfly.training.callbacks import LogHandler, Checkpoint, Evaluation
 from torchfly.common import move_to_device
 from torchfly.training import FlyModel
 
@@ -282,12 +282,14 @@ class TrainerLoop:
             loss.backward()
 
     def validate(self):
+        # Start Validation
+        self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
         # Validation
         self.model.eval()
         # No gradient is needed for validation
         with torch.no_grad():
             pbar = tqdm.tqdm(self.validation_dataloader)
-            pbar.mininterval = 5.0
+            pbar.mininterval = 2.0
             for batch in pbar:
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
@@ -296,21 +298,18 @@ class TrainerLoop:
                     self.model.module.predict(batch)
                 else:
                     self.model.predict(batch)
-        # END
-        # get metrics
-        if self.distributed_training:
-            metrics = self.model.module.get_metrics(reset=True)
-        else:
-            metrics = self.model.get_metrics(reset=True)
-        return metrics
+
+        self.callback_handler.fire_event(Events.VALIDATE_END)
 
     def test(self):
+        # Start Testing
+        self.callback_handler.fire_event(Events.TEST_BEGIN)
         # Validation
         self.model.eval()
         # No gradient is needed for test
         with torch.no_grad():
             pbar = tqdm.tqdm(self.test_dataloader)
-            pbar.mininterval = 5.0
+            pbar.mininterval = 2.0
             for batch in pbar:
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
@@ -319,13 +318,7 @@ class TrainerLoop:
                     self.model.module.predict(batch)
                 else:
                     self.model.predict(batch)
-        # END
-        # get metrics
-        if self.distributed_training:
-            metrics = self.model.module.get_metrics(reset=True)
-        else:
-            metrics = self.model.get_metrics(reset=True)
-        return metrics
+        self.callback_handler.fire_event(Events.TEST_END)
 
     def set_model_state(self, model_state_dict):
         if self.distributed_training:

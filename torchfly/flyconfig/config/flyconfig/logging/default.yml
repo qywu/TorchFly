@@ -8,6 +8,7 @@ flyconfig:
       colorlog:
         '()': 'colorlog.ColoredFormatter'
         format: '[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s][%(log_color)s%(levelname)s%(reset)s] - %(message)s'
+        datefmt: "%Y-%m-%d %H:%M:%S"
         log_colors:
           DEBUG: purple
           INFO: green

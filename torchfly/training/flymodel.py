@@ -5,7 +5,7 @@ import apex
 from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
-from torchfly.training.optimization import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
+from torchfly.training.schedulers import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
     WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule
 
 import logging
