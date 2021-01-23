@@ -152,11 +152,11 @@ class GlobalFlyConfig(metaclass=Singleton):
 def get_config_path_from_argv(config_path):
     argv_config_path = None
     for idx, argv in enumerate(sys.argv[1:]):
-        if argv.startswith("--config_path"):
+        if argv.startswith("--config_path") or argv.startswith("--config"):
             try:
                 argv_config_path = sys.argv[idx + 2]
             except IndexError:
-                raise ValueError("Please provide the path after --config_path.")
+                raise ValueError("Please provide the path after --config.")
             argv_config_path = check_config_path(argv_config_path)
             break
 
@@ -164,7 +164,7 @@ def get_config_path_from_argv(config_path):
         return config_path
     else:
         if config_path is not None:
-            logger.warning("Overriding the old config_path from --config_path!")
+            logger.warning("Overriding the old config_path from --config!")
         return argv_config_path
 
 

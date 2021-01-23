@@ -35,7 +35,7 @@ class Evaluation(Callback):
             ) or self.config.training.evaluation.seconds_interval < 0:
                 self.evaluation_in_seconds = False
                 # validate for every epoch
-                self.config.training.evaluation.steps_interval = trainer.epoch_num_training_steps - 1
+                self.config.training.evaluation.steps_interval = trainer.epoch_num_training_steps
             else:
                 self.evaluation_in_seconds = True
 

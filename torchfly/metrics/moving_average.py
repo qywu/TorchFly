@@ -1,4 +1,5 @@
 import logging
+import math
 import numpy as np
 from overrides import overrides
 
@@ -25,7 +26,9 @@ class MovingAverage(Metric):
         Args:
             value : `float` The value to average.
         """
-        if isinstance(value, float):
+        if math.isnan(value):
+            logger.warn("Detected nan!")
+        elif isinstance(value, float):
             if self._avg_value == -99999:
                 self._avg_value = value
             else:
