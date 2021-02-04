@@ -1,4 +1,4 @@
-defaults:
+subconfigs:
   - flyconfig/logging : default   # FlyConfig's logging config
   - flyconfig/output: default           # Output directory
 

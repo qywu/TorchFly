@@ -6,6 +6,7 @@ from .metric import Metric
 
 # pylint:disable=no-member
 
+
 @Metric.register("fbeta")
 class FBetaMeasure(Metric):
     """Compute precision, recall, F-measure and support for each class.
@@ -42,7 +43,8 @@ class FBetaMeasure(Metric):
         multi-class average ignoring a majority negative class. Labels not present
         in the data will result in 0 components in a macro average.
     """
-    def __init__(self, beta: float = 1.0, average: str = None, labels: List[int] = None) -> None:
+    def __init__(self, beta: float = 1.0, average: str = None, labels: List[int] = None, name: str = None) -> None:
+        super().__init__(name)
         average_options = (None, "micro", "macro")
         if average not in average_options:
             raise ValueError(f"`average` has to be one of {average_options}.")

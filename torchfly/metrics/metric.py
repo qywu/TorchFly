@@ -9,6 +9,9 @@ class Metric(Registrable):
     A very general abstract class representing a metric which can be
     accumulated. (allennlp/training/metrics/metric.py)
     """
+    def __init__(self, name=None):
+        self.name = name
+
     def __call__(self, *args, **kwargs):
         raise NotImplementedError
 

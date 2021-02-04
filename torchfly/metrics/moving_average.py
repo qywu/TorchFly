@@ -5,7 +5,7 @@ from overrides import overrides
 
 from .metric import Metric
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 @Metric.register("moving_average")
@@ -16,9 +16,11 @@ class MovingAverage(Metric):
     the metric for you, for instance, you can use this to report the average result using our
     `Metric` API.
     """
-    def __init__(self, beta: float = 0.9) -> None:
+    def __init__(self, beta: float = 0.9, name="moving_average") -> None:
+        super().__init__(name)
         self.beta = beta
         self._avg_value = -99999
+        self.logger = logging.getLogger(name) 
 
     @overrides
     def __call__(self, value):
@@ -27,14 +29,14 @@ class MovingAverage(Metric):
             value : `float` The value to average.
         """
         if math.isnan(value):
-            logger.warn("Detected nan!")
+            self.logger.warn("Detected nan! Skipping the value")
         elif isinstance(value, float):
             if self._avg_value == -99999:
                 self._avg_value = value
             else:
                 self._avg_value = self.beta * self._avg_value + (1 - self.beta) * value
         else:
-            logger.error(f"Cannot tale {type(value)} type")
+            self.logger.error(f"Cannot tale {type(value)} type")
             raise NotImplementedError
 
     @overrides

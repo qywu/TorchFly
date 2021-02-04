@@ -1,6 +1,7 @@
 from typing import Any, List, Dict, Iterator, Callable
 import torch
 import torch.nn as nn
+import numpy as np
 import apex
 from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
@@ -18,6 +19,7 @@ class FlyModel(nn.Module):
         super().__init__(*args, **kwargs)
         self.config = config
         self.is_training = True
+        self.configure_metrics()
 
     def set_trainer(self, trainer):
         """
@@ -79,11 +81,13 @@ class FlyModel(nn.Module):
                 optimizer_grouped_parameters, lr=lr, betas=betas, max_grad_norm=max_gradient_norm
             )
         else:
-            raise NotImplementedError(f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!")
+            raise NotImplementedError(
+                f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!"
+            )
 
-        scheduler_name = self.config.training.optimization.warmup.scheduler_name
-        warmup_steps = self.config.training.optimization.warmup.warmup_steps
-        warmup_cycle = self.config.training.optimization.warmup.warmup_cosine_cycle
+        scheduler_name = self.config.training.scheduler.scheduler_name
+        warmup_steps = self.config.training.scheduler.warmup_steps
+        warmup_cycle = self.config.training.scheduler.warmup_cosine_cycle
 
         if scheduler_name == "Constant":
             scheduler = ConstantLRSchedule(optimizer)
@@ -106,7 +110,26 @@ class FlyModel(nn.Module):
             logger.error("Write your own version of `configure_scheduler`!")
             raise NotImplementedError
 
+        setattr(self, "get_last_lr", scheduler.get_last_lr)
+
         return [optimizer], [scheduler]
+
+    def get_last_lr(self):
+        raise NotImplementedError("Please hook this function to the `scheduler.get_last_lr`!")
+
+    def get_training_metrics(self) -> Dict[str, str]:
+        raise NotImplementedError
+
+    def get_evaluation_metrics(self) -> Dict[str, str]:
+        raise NotImplementedError
+
+    def reset_training_metrics(self):
+        for metric in self.training_metrics.values():
+            metric.reset()
+
+    def reset_evaluation_metrics(self):
+        for metric in self.evaluation_metrics.values():
+            metric.reset()
 
     # def to(self, device, non_blocking=False):
     #     pass

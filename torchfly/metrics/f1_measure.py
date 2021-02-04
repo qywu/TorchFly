@@ -12,8 +12,8 @@ class F1Measure(FBetaMeasure):
     the tag you are interested in, resulting in the Precision, Recall and F1 score being
     calculated for this tag only.
     """
-    def __init__(self, positive_label: int) -> None:
-        super().__init__(beta=1, labels=[positive_label])
+    def __init__(self, positive_label: int, name: str = None) -> None:
+        super().__init__(beta=1, labels=[positive_label], name=name)
         self._positive_label = positive_label
 
     def get_metric(self, reset: bool = False) -> Tuple[float, float, float]:

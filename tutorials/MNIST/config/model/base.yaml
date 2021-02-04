@@ -1,0 +1,3 @@
+model:
+    conv1_channels: 32
+    hidden_size: 128

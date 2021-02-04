@@ -15,7 +15,8 @@ class CategoricalAccuracy(Metric):
     Tie break enables equal distribution of scores among the
     classes with same maximum predicted scores.
     """
-    def __init__(self, top_k: int = 1, tie_break: bool = False) -> None:
+    def __init__(self, top_k: int = 1, tie_break: bool = False, name: str = None) -> None:
+        super().__init__(name)
         if top_k > 1 and tie_break:
             raise ValueError("Tie break in Categorical Accuracy can be done only for maximum (top_k = 1)")
         if top_k <= 0:

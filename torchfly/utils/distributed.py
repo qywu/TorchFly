@@ -18,7 +18,7 @@ from contextlib import contextmanager
 import torch
 
 
-def init_distributed(cuda):
+def init_distributed(cuda=True):
     """
     Initializes distributed backend.
 
@@ -29,8 +29,7 @@ def init_distributed(cuda):
     distributed = (world_size > 1)
     if distributed:
         backend = 'nccl' if cuda else 'gloo'
-        torch.distributed.init_process_group(backend=backend,
-                                             init_method='env://')
+        torch.distributed.init_process_group(backend=backend, init_method='env://')
         assert torch.distributed.is_initialized()
     return distributed
 

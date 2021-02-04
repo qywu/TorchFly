@@ -97,7 +97,10 @@ class GlobalFlyConfig(metaclass=Singleton):
                 logger.info(f"Working directory is changed to {working_dir_path}")
 
         # clean defaults
-        del config["defaults"]
+        if "defaults" in config:
+            del config["defaults"]
+        elif "subconfigs" in config:
+            del config["subconfigs"]
 
         # overrides
         overrides = get_overrides_from_argv(sys.argv[1:])

@@ -1,0 +1,10 @@
+subconfigs:
+    - model: base
+    - training: base
+flyconfig:
+    run:
+        # Specify the working directory
+        # ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+        dir: ./outputs/${task.name}/${now:%H-%M-%S}
+task:
+    name: mnist-example

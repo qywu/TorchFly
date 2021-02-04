@@ -1,6 +1,7 @@
 from typing import Any, Dict
 import os
 import sys
+import math
 import time
 import torch
 import logging
@@ -35,7 +36,7 @@ class Evaluation(Callback):
             ) or self.config.training.evaluation.seconds_interval < 0:
                 self.evaluation_in_seconds = False
                 # validate for every epoch
-                self.config.training.evaluation.steps_interval = trainer.epoch_num_training_steps
+                self.config.training.evaluation.steps_interval = math.ceil(trainer.epoch_num_batches / trainer.gradient_accumulation_batches)
             else:
                 self.evaluation_in_seconds = True
 
@@ -44,6 +45,8 @@ class Evaluation(Callback):
             self.evaluation_after_num_steps = 0
         else:
             self.evaluation_after_num_steps = self.config.training.evaluation.after_num_steps
+
+        self.evaluate_in_epoch = trainer.training_in_epoch
 
     @handle_event(Events.TRAIN_BEGIN)
     def on_train_begin(self, trainer):
@@ -54,17 +57,23 @@ class Evaluation(Callback):
 
     @handle_event(Events.BATCH_END)
     def on_batch_end(self, trainer: Trainer):
-        # Check evaluation
-        if trainer.global_step_count > self.evaluation_after_num_steps:
-            if self.evaluation_in_seconds:
-                current_time = time.time()
-                # the elapsed time is longer than the seconds
-                if (current_time - self.last_save_time) > self.config.training.evaluation.seconds_interval:
-                    self._evaluation(trainer)
-                    self.last_save_time = current_time
-            else:
-                if (trainer.global_step_count + 1) % self.config.training.evaluation.steps_interval == 0:
-                    self._evaluation(trainer)
+        if not self.evaluate_in_epoch:
+            # Check evaluation
+            if trainer.global_step_count > self.evaluation_after_num_steps:
+                if self.evaluation_in_seconds:
+                    current_time = time.time()
+                    # the elapsed time is longer than the seconds
+                    if (current_time - self.last_save_time) > self.config.training.evaluation.seconds_interval:
+                        self._evaluation(trainer)
+                        self.last_save_time = current_time
+                else:
+                    if (trainer.global_step_count + 1) % self.config.training.evaluation.steps_interval == 0:
+                        self._evaluation(trainer)
+
+    @handle_event(Events.EPOCH_END)
+    def on_epoch_end(self, trainer: Trainer):
+        if self.evaluate_in_epoch:
+            self._evaluation(trainer)
 
     def _evaluation(self, trainer):
         if trainer.validation_dataloader is not None:
