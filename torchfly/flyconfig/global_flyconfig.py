@@ -229,7 +229,7 @@ def load_system_config() -> OmegaConf:
     module_path = os.path.dirname(os.path.abspath(__file__))
     system_config_path = os.path.join(module_path, "config", "flyconfig.yml")
     system_config = OmegaConf.load(system_config_path)
-    system_defaults = system_config["defaults"]
+    system_defaults = system_config["subconfigs"]
 
     sysmte_config = merge_defaults(
         config_dir=os.path.dirname(system_config_path), config=system_config, defaults=system_defaults

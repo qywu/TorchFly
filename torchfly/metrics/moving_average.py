@@ -29,7 +29,7 @@ class MovingAverage(Metric):
             value : `float` The value to average.
         """
         if math.isnan(value):
-            self.logger.warn("Detected nan! Skipping the value")
+            self.logger.warn(f"Detected nan in {self.name}! Skipping the value")
         elif isinstance(value, float):
             if self._avg_value == -99999:
                 self._avg_value = value
