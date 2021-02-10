@@ -127,9 +127,9 @@ def search_argv_config_path():
                 raise ValueError(f"Cannot find {config_path}! Please specify a valid path.")
 
             return config_path
-        # if argv does not provide config_path
-        else:
-            return None
+    
+    # if argv does not provide config_path
+    return None
 
 
 class FlyConfig:
