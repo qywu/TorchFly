@@ -36,7 +36,9 @@ class Evaluation(Callback):
             ) or self.config.training.evaluation.seconds_interval < 0:
                 self.evaluation_in_seconds = False
                 # validate for every epoch
-                self.config.training.evaluation.steps_interval = math.ceil(trainer.epoch_num_batches / trainer.gradient_accumulation_batches)
+                self.config.training.evaluation.steps_interval = math.ceil(
+                    trainer.epoch_num_batches / trainer.gradient_accumulation_batches
+                )
             else:
                 self.evaluation_in_seconds = True
 
@@ -46,7 +48,14 @@ class Evaluation(Callback):
         else:
             self.evaluation_after_num_steps = self.config.training.evaluation.after_num_steps
 
-        self.evaluate_in_epoch = trainer.training_in_epoch
+        if self.config.training.evaluation.steps_interval < 0 and self.config.training.evaluation.seconds_interval < 0:
+            self.evaluate_in_epoch = trainer.training_in_epoch
+            if self.evaluate_in_epoch == False:
+                raise ValueError(
+                    "Please set either `config.training.evaluation.steps_interval` or `config.training.evaluation.seconds_interval`"
+                )
+        else:
+            self.evaluate_in_epoch = False
 
     @handle_event(Events.TRAIN_BEGIN)
     def on_train_begin(self, trainer):
