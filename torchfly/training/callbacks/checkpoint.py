@@ -11,7 +11,7 @@ from ..checkpointer import Checkpointer
 from .events import Events
 from .callback import Callback, handle_event
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("checkpointer")
 
 __all__ = ["Checkpoint"]
 Trainer = Any
@@ -54,16 +54,23 @@ class Checkpoint(Callback):
 
     @handle_event(Events.INITIALIZE, priority=199)
     def setup_checkpointer(self, trainer: Trainer):
+        # Checkpoint in epochs or steps
+        if self.config.training.checkpointing.steps_interval < 0 and self.config.training.checkpointing.seconds_interval < 0:
+            self.checkpoint_in_epoch = True
+        else:
+            self.checkpoint_in_epoch = False
+
         # Checkpoint in seconds or steps
-        if self.config.training.checkpointing.steps_interval > 0:
+        if self.config.training.checkpointing.steps_interval > 0 and self.config.training.checkpointing.seconds_interval > 0:
+            raise ValueError(
+                "Either `checkpointing.steps_interval` or `checkpointing.seconds_interval` can be set greater than 0!"
+            )
+        elif self.config.training.checkpointing.steps_interval < 0 and self.config.training.checkpointing.seconds_interval > 0:
+            self.checkpoint_in_seconds = True
+        elif self.config.training.checkpointing.steps_interval > 0 and self.config.training.checkpointing.seconds_interval < 0:
             self.checkpoint_in_seconds = False
         else:
-            if self.config.training.checkpointing.seconds_interval < 0:
-                self.checkpoint_in_seconds = False
-                # save for every epoch
-                self.config.training.checkpointing.steps_interval = trainer.epoch_num_training_steps - 1
-            else:
-                self.checkpoint_in_seconds = True
+            self.checkpoint_in_seconds = False
 
         # Search for the latest checkpoint
         if self.config.training.resume.resume:
@@ -96,15 +103,23 @@ class Checkpoint(Callback):
     def save_checkpoint(self, trainer: Trainer):
         # Checkpointing
         if self.rank == 0:
-            if self.checkpoint_in_seconds:
-                current_time = time.time()
-                # the elapsed time is longer than the seconds
-                if (current_time - self.last_save_time) > self.config.training.checkpointing.seconds_interval:
-                    self._save_trainer_state(trainer)
-                    self.last_save_time = current_time
-            else:
-                if (trainer.global_step_count + 1) % self.config.training.checkpointing.steps_interval == 0:
-                    self._save_trainer_state(trainer)
+            if not self.checkpoint_in_epoch:
+                if self.checkpoint_in_seconds:
+                    current_time = time.time()
+                    # the elapsed time is longer than the seconds
+                    if (current_time - self.last_save_time) > self.config.training.checkpointing.seconds_interval:
+                        self._save_trainer_state(trainer)
+                        self.last_save_time = current_time
+                else:
+                    if (trainer.global_step_count + 1) % self.config.training.checkpointing.steps_interval == 0:
+                        self._save_trainer_state(trainer)
+
+    @handle_event(Events.EPOCH_END)
+    def save_checkpoint_epoch(self, trainer: Trainer):
+        # Checkpointing
+        if self.rank == 0:
+            if self.checkpoint_in_epoch:
+                self._save_trainer_state(trainer)
 
     def _save_trainer_state(self, trainer: Trainer):
 
@@ -112,7 +127,7 @@ class Checkpoint(Callback):
         self.checkpointer.save_checkpoint(
             "iter_" + str(trainer.global_step_count), trainer.get_model_state(), trainer_state_dict
         )
-        logger.info(f"Saved iteration {str(trainer.global_step_count)} checkpoint!")
+        logger.info(f"Saved Checkpoint for Epoch {trainer.epochs_trained + 1} Iteration {trainer.global_step_count}!")
 
     def state_dict(self):
         return self.checkpointer.state_dict()

@@ -150,7 +150,7 @@ class TrainerLoop:
             if self.epoch_num_batches is not None:
                 self.total_num_batches = self.epoch_num_batches * self.total_num_epochs
                 self.total_num_update_steps = self.total_num_batches // self.gradient_accumulation_batches
-                # self.epoch_num_update_steps = self.epoch_num_batches // self.gradient_accumulation_batches
+                self.epoch_num_update_steps = self.epoch_num_batches // self.gradient_accumulation_batches
             else:
                 # this is set to wait until the epoch finishes first
                 self.total_num_update_steps = sys.maxsize

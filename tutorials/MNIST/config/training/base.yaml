@@ -14,7 +14,7 @@ training:
         async_save: false
         directory: "Checkpoints"
         steps_interval: -1
-        seconds_interval: 99999999
+        seconds_interval: -1
         num_checkpoints_to_keep: 1000
         keep_checkpoint_every_num_seconds: 86400
     logging:
