@@ -9,6 +9,7 @@ import logging.config
 from omegaconf import OmegaConf, DictConfig
 import argparse
 import re
+import torch
 
 import torchfly.utils.distributed as distributed
 
@@ -43,6 +44,12 @@ class FlyLogger(metaclass=Singleton):
         self.logging = logging
         self.chdir = chdir
         self.initialized = False
+
+        if torch.distributed.is_initialized():
+            self.rank = distributed.get_rank()
+        else:
+            self.rank = int(os.environ.get("RANK", 0))
+        
         self.initialize()
 
     def initialize(self):
@@ -59,29 +66,31 @@ class FlyLogger(metaclass=Singleton):
 
         # configure logging, FlyLogger should only configure rank 0
         # other ranks should use their own logger
-        if distributed.get_rank() == 0 and self.logging:
+        if self.rank == 0 and self.logging:
             logging.config.dictConfig(OmegaConf.to_container(self.config.flyconfig.logging))
             logger.info("FlyLogger is initialized!")
 
             if self.chdir:
                 logger.info(f"Working directory is changed to {working_dir_path}")
+        elif self.rank != 0 and self.logging:
+            # for other ranks, we initialize a debug level logger
+            logging.basicConfig(format=f'[%(asctime)s][%(name)s][%(levelname)s][RANK {self.rank}] - %(message)s', level=logging.DEBUG)
 
         # save the current configuration, only rank 0 can save
-        with distributed.sync_workers() as rank:
-            if rank == 0:
-                # save the entire config directory
-                cwd = self.config.flyconfig.runtime.cwd
-                config_path = self.config.flyconfig.runtime.config_path
-                cwd_config_dirpath = os.path.join(cwd, os.path.dirname(config_path))
-                save_config_path = os.path.join(self.config.flyconfig.output_subdir, "saved_config")
+        if self.rank == 0:
+            # save the entire config directory
+            cwd = self.config.flyconfig.runtime.cwd
+            config_path = self.config.flyconfig.runtime.config_path
+            cwd_config_dirpath = os.path.join(cwd, os.path.dirname(config_path))
+            save_config_path = os.path.join(self.config.flyconfig.output_subdir, "saved_config")
 
-                if not os.path.exists(save_config_path):
-                    shutil.copytree(cwd_config_dirpath, save_config_path)
+            if not os.path.exists(save_config_path):
+                shutil.copytree(cwd_config_dirpath, save_config_path)
 
-                    final_config_path = os.path.join(self.config.flyconfig.output_subdir, "config.yml")
+                final_config_path = os.path.join(self.config.flyconfig.output_subdir, "config.yml")
 
-                    with open(final_config_path, "w") as f:
-                        OmegaConf.save(self.config, f)
+                with open(final_config_path, "w") as f:
+                    OmegaConf.save(self.config, f)
 
         self.initialized = True
 

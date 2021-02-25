@@ -1,8 +1,8 @@
 training:
     random_seed: 123
     fp16: True
-    num_gpus_per_node: 1
-    batch_size: 256
+    num_gpus_per_node: 2
+    batch_size: 32
     gradient_accumulation_batches: 1
     resume:
         resume: False
@@ -13,7 +13,7 @@ training:
     checkpointing:
         async_save: false
         directory: "Checkpoints"
-        steps_interval: -1
+        steps_interval: 9999999
         seconds_interval: -1
         num_checkpoints_to_keep: 1000
         keep_checkpoint_every_num_seconds: 86400

@@ -56,10 +56,11 @@ class TrainerLoop:
         self.world_size = int(os.environ.get("WORLD_SIZE", 1))
         self.distributed_training = (self.world_size > 1)
 
-        if self.distributed_training:
+        if self.distributed_training and not torch.distributed.is_initialized():
             torch.distributed.init_process_group(backend='nccl', init_method='env://')
             assert torch.distributed.is_initialized()
 
+        if self.distributed_training:
             self.node_rank = os.environ.get("NODE_RANK", "N/A")
             logger.info(
                 f"Initialized Rank:{torch.distributed.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
@@ -161,8 +162,8 @@ class TrainerLoop:
     def configure_callbacks(self):
         # Callback
         # by default set up LogHandler and Checkpointer
-        self.checkpoint_callback = Checkpoint(self.config)
-        self.add_callback(self.checkpoint_callback)
+        # self.checkpoint_callback = Checkpoint(self.config)
+        # self.add_callback(self.checkpoint_callback)
 
         # For logging and inference, use rank 0 by default
         if self.rank == 0:

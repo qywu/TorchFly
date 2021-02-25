@@ -6,6 +6,7 @@ from torchvision import datasets, transforms
 from torchfly.flylogger import FlyLogger
 from torchfly.flyconfig import FlyConfig
 from torchfly.training import TrainerLoop
+from torchfly.utils import distributed
 
 from model import CNNFlyModel
 
@@ -19,13 +20,15 @@ class DataLoaderHelper:
             'num_workers': 0,
             'pin_memory': True,
         }
-        dataset = datasets.MNIST(
-            os.path.join("/tmp", 'MNIST'),
-            train=True,
-            download=True,
-            transform=transforms.Compose([transforms.ToTensor(),
-                                          transforms.Normalize((0.1307, ), (0.3081, ))])
-        )
+
+        with distributed.mutex() as rank:
+            dataset = datasets.MNIST(
+                os.path.join("/tmp", 'MNIST'),
+                train=True,
+                download=True,
+                transform=transforms.Compose([transforms.ToTensor(),
+                                              transforms.Normalize((0.1307, ), (0.3081, ))])
+            )
 
         dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, **kwargs)
 
@@ -50,14 +53,18 @@ class DataLoaderHelper:
 
 
 def main():
+    # we recommand adding this function before everything starts
+    torch.distributed.init_process_group(backend='nccl', init_method='env://')
+    
     config = FlyConfig.load()
     fly_logger = FlyLogger(config)
-
     data_helper = DataLoaderHelper(config)
 
     model = CNNFlyModel(config)
 
-    trainer = TrainerLoop(config, model, train_dataloader_fn=data_helper.train_loader_fn, valid_dataloader_fn=data_helper.valid_loader_fn)
+    trainer = TrainerLoop(
+        config, model, train_dataloader_fn=data_helper.train_loader_fn, valid_dataloader_fn=data_helper.valid_loader_fn
+    )
 
     trainer.train()
 

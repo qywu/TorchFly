@@ -16,6 +16,10 @@ import os
 from contextlib import contextmanager
 
 import torch
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def init_distributed(cuda=True):
@@ -49,6 +53,9 @@ def get_rank():
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         rank = torch.distributed.get_rank()
     else:
+        logger.warn(
+            "torch.distributed is not initialized! This function is only supposed to be used after distirbuted initialization"
+        )
         rank = 0
     return rank
 
@@ -107,3 +114,21 @@ def sync_workers():
     rank = get_rank()
     yield rank
     barrier()
+
+
+@contextmanager
+def mutex(rank=0):
+    """
+    Only allow the specified rank process to go first
+    """
+    myrank = get_rank()
+
+    if myrank == rank:
+        logger.info(f"Rank {myrank} entering mutex!")
+        yield rank
+        barrier()
+    else:
+        logger.info(f"Rank {myrank} is locked waiting for rank {rank}!")
+        barrier()
+        time.sleep(0.1)
+        yield rank
