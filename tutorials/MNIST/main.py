@@ -54,8 +54,9 @@ class DataLoaderHelper:
 
 def main():
     # we recommand adding this function before everything starts
-    torch.distributed.init_process_group(backend='nccl', init_method='env://')
-    
+    if "RANK" in os.environ:
+        torch.distributed.init_process_group(backend='nccl', init_method='env://')
+
     config = FlyConfig.load()
     fly_logger = FlyLogger(config)
     data_helper = DataLoaderHelper(config)
