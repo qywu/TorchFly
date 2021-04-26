@@ -5,14 +5,14 @@
 ## Installment
 
 
-Please download [conda](https://www.anaconda.com/distribution/#download-section) and create a virtual environment first.
+Please download [conda](https://www.anaconda.com/distribution/#download-section) and create a virtual environment first (Python >= 3.6).
 
 ```bash
 # create virtual env
-conda create -n torchfly python=3.6
+conda create -n torchfly python=3.7
 ```
 
-[apex](https://github.com/qywu/apex) is required, but it may need modifications if cuda version is mismatched.
+[apex](https://github.com/qywu/apex) is recommended, but it may need modifications if cuda version is mismatched. You can install it via:
 
 ```bash
 # make sure ``nvcc`` is installed
