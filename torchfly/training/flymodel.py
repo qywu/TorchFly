@@ -6,6 +6,7 @@ import apex
 from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
+from torchfly.metrics import CategoricalAccuracy, Average, MovingAverage, Speed
 from torchfly.training.schedulers import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
     WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule
 
@@ -130,6 +131,10 @@ class FlyModel(nn.Module):
     def reset_evaluation_metrics(self):
         for metric in self.evaluation_metrics.values():
             metric.reset()
+
+    def configure_metrics(self):
+        self.training_metrics = {"loss": MovingAverage()}
+        self.evaluation_metrics = {"loss": Average()}
 
     # def to(self, device, non_blocking=False):
     #     pass

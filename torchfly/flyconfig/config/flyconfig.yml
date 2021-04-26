@@ -1,6 +1,7 @@
 subconfigs:
   - flyconfig/logging : default   # FlyConfig's logging config
-  - flyconfig/output: default           # Output directory
+  - flyconfig/output: default     # Output directory
+  - training: default             # default training config
 
 flyconfig:
   run: ???              # Normal run output configuration

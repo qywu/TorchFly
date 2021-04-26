@@ -1,3 +1,7 @@
+"""
+This file is DEPRECATED!
+"""
+
 from typing import Any, Dict
 import os
 import sys
@@ -233,9 +237,9 @@ class LogHandler(Callback):
         updated_steps = trainer.global_step_count // self.config.training.optimization.gradient_accumulation_steps
 
         if not self.training_in_epoch:
-            percent = 100. * updated_steps / trainer.epoch_num_training_steps
+            percent = 100. * updated_steps / trainer.epoch_num_update_steps
         else:
-            percent = 100. * trainer.local_step_count / trainer.epoch_num_training_steps
+            percent = 100. * trainer.local_step_count / trainer.epoch_num_update_steps
 
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step

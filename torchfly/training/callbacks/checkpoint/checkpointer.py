@@ -90,9 +90,11 @@ class Checkpointer:
 
     def restore_latest_checkpoint(self) -> [Dict, None]:
         """
+        DEPRECATED
         Returns:
             state_dict: return the checkpoint's state dict. None if there is nothing.
         """
+        logger.warning("This function is deprecated!")
         files = glob.glob(os.path.join(self.storage_dir, "*model_state.pth"))
         sorted_files = sorted(files, key=os.path.getctime, reverse=True)
 

@@ -35,10 +35,6 @@ class Evaluation(Callback):
                 not hasattr(self.config.training.evaluation, "seconds_interval")
             ) or self.config.training.evaluation.seconds_interval < 0:
                 self.evaluation_in_seconds = False
-                # validate for every epoch
-                self.config.training.evaluation.steps_interval = math.ceil(
-                    trainer.epoch_num_batches / trainer.gradient_accumulation_batches
-                )
             else:
                 self.evaluation_in_seconds = True
 

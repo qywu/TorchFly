@@ -7,7 +7,7 @@ import datetime
 import collections
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import logging
 import atexit
 
@@ -73,7 +73,7 @@ class TextRLLogHandler(Callback):
 
     @handle_event(Events.INITIALIZE, priority=100)
     def report_init_config(self, trainer: Trainer):
-        logger.info(self.config.pretty())
+        logger.info(OmegaConf.to_yaml(self.config))
 
     @handle_event(Events.TRAIN_BEGIN, priority=155)
     def setup_timer(self, trainer: Trainer):
@@ -155,7 +155,11 @@ class TextRLLogHandler(Callback):
             log_dict: Dict
         """
         updated_steps = trainer.global_step_count
-        percent = 100. * updated_steps / trainer.epoch_num_training_steps
+        if trainer.epoch_num_batches is not None:
+            if not self.training_in_epoch:
+                percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
+            else:
+                percent = 100. * trainer.epoch_step_count / (trainer.epoch_num_batches // trainer.gradient_accumulation_batches)
 
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step

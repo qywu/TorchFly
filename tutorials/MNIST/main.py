@@ -23,7 +23,7 @@ class DataLoaderHelper:
 
         with distributed.mutex() as rank:
             dataset = datasets.MNIST(
-                os.path.join("/tmp", 'MNIST'),
+                os.path.join(self.config.task.datadir, 'MNIST'),
                 train=True,
                 download=True,
                 transform=transforms.Compose([transforms.ToTensor(),
@@ -40,7 +40,7 @@ class DataLoaderHelper:
             'pin_memory': True,
         }
         dataset = datasets.MNIST(
-            os.path.join("/tmp", 'MNIST'),
+            os.path.join(self.config.task.datadir, 'MNIST'),
             train=False,
             download=True,
             transform=transforms.Compose([transforms.ToTensor(),

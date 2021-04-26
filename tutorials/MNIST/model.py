@@ -63,11 +63,11 @@ class CNNFlyModel(FlyModel):
         self.evaluation_metrics["acc"](predictions=output, gold_labels=target)
         return None
 
-    def get_metrics(self, reset: bool = False) -> Dict[str, float]:
-        metrics = {
-            "accuracy": self._accuracy.get_metric(reset),
-        }
-        return metrics
+    # def get_metrics(self, reset: bool = False) -> Dict[str, float]:
+    #     metrics = {
+    #         "accuracy": self._accuracy.get_metric(reset),
+    #     }
+    #     return metrics
 
     def get_training_metrics(self) -> Dict[str, str]:
         loss = self.training_metrics["loss"].get_metric()

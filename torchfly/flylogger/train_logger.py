@@ -104,7 +104,7 @@ class TrainLogger(Callback):
 
         if self.training_in_epoch:
             logger.info(f"Total num of epochs of for training: {trainer.total_num_epochs}")
-        logger.info(f"Total num of steps of for training: {trainer.total_num_update_steps}")
+        logger.info(f"Total num of update steps of for training: {trainer.total_num_update_steps}")
 
     @handle_event(Events.EPOCH_BEGIN)
     def setup_epoch_timer(self, trainer: Trainer):
@@ -154,7 +154,13 @@ class TrainLogger(Callback):
             metrics = trainer.model.get_evaluation_metrics()
             # loop over all the metrics
             for metric_name, value in metrics.items():
-                log_string += f" | {metric_name} {value}"
+                # if value is tuple, parse it
+                if isinstance(value, tuple):
+                    display_value, value = value
+                else:
+                    display_value = value
+
+                log_string += f" | {metric_name} {display_value}"
                 # tensorboard
                 try:
                     value = float(value)
@@ -172,11 +178,17 @@ class TrainLogger(Callback):
     @handle_event(Events.TEST_END)
     def show_test_metrics(self, trainer: Trainer):
         if trainer.test_dataloader is not None:
-            log_string = f"Test at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count + 1} | duration {time.time() - self.eval_start_time:3.2f}s"
+            log_string = f"Test at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
             metrics = trainer.model.get_evaluation_metrics()
             # loop over all the metrics
             for metric_name, value in metrics.items():
-                log_string += f" | {metric_name} {value}"
+                # if value is tuple, parse it
+                if isinstance(value, tuple):
+                    display_value, value = value
+                else:
+                    display_value = value
+
+                log_string += f" | {metric_name} {display_value}"
                 # tensorboard
                 try:
                     value = float(value)
@@ -194,7 +206,7 @@ class TrainLogger(Callback):
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
 
-        items_per_second = elapsed_steps * self.config.training.batch_size * trainer.world_size / iter_elapsed_time
+        items_per_second = elapsed_steps * self.config.training.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
         log_string = (

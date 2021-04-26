@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.distributed
 from torch.cuda.amp import GradScaler, autocast
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import socket
 import apex
 from apex import amp
@@ -16,9 +16,10 @@ from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
 # local imports
+import torchfly
 from torchfly.utils.distributed import barrier
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
-from torchfly.training.callbacks import Checkpoint, Evaluation
+from torchfly.training.callbacks import Checkpoint, Evaluation, Console, Resume
 from torchfly.flylogger.train_logger import TrainLogger
 from torchfly.common import move_to_device
 from torchfly.training import FlyModel
@@ -46,7 +47,6 @@ class TrainerLoop:
             dataloader_fn: a Callable function which returns dataloaders
         """
         assert isinstance(model, FlyModel)
-
         self.config = config
         self.model = model
 
@@ -160,23 +160,31 @@ class TrainerLoop:
         return self.model.configure_optimizers(self.total_num_update_steps)
 
     def configure_callbacks(self):
-        # Callback
-        # by default set up LogHandler and Checkpointer
-        # self.checkpoint_callback = Checkpoint(self.config)
-        # self.add_callback(self.checkpoint_callback)
+        # Resume callback runs for all ranks
+        self.resume_callback = Resume(self.config)
+        self.add_callback(self.resume_callback)
 
         # For logging and inference, use rank 0 by default
         if self.rank == 0:
             self.log_callback = TrainLogger(self.config)
             self.add_callback(self.log_callback)
 
-            self.inference_callback = Evaluation(self.config)
-            self.add_callback(self.inference_callback)
+            self.eval_callback = Evaluation(self.config)
+            self.add_callback(self.eval_callback)
+
+            self.console_callback = Console(self.config)
+            self.add_callback(self.console_callback)
+
+            self.checkpoint_callback = Checkpoint(self.config)
+            self.add_callback(self.checkpoint_callback)
 
     def configure_fp16(self):
         self.loss_scaler = GradScaler()
 
     def configure_ddp(self):
+        """
+        Default distributed training uses reducer for simplicity. 
+        """
         # Distributed training (should be after apex fp16 initialization)
         self.distributed_training = True
         self.reducer = Reducer(self.model)
@@ -292,9 +300,9 @@ class TrainerLoop:
 
     def validate(self):
         # Start Validation
-        self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
-        # Validation
         self.model.eval()
+        self.model.reset_evaluation_metrics()
+        self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
         # No gradient is needed for validation
         with torch.no_grad():
             pbar = tqdm.tqdm(self.validation_dataloader)
@@ -308,9 +316,9 @@ class TrainerLoop:
 
     def test(self):
         # Start Testing
-        self.callback_handler.fire_event(Events.TEST_BEGIN)
-        # Validation
         self.model.eval()
+        self.model.reset_evaluation_metrics()
+        self.callback_handler.fire_event(Events.TEST_BEGIN)
         # No gradient is needed for test
         with torch.no_grad():
             pbar = tqdm.tqdm(self.test_dataloader)
@@ -336,7 +344,7 @@ class TrainerLoop:
         # Resume the training state
         if self.config.training.resume.resume:
             # Scheduler States
-            if self.config.training.resume.resume_schedulers:
+            if self.config.training.resume.resume_scheduler:
                 for idx, scheduler in enumerate(self.schedulers):
                     try:
                         scheduler.load_state_dict(trainer_state_dict["schedulers_state_dict"][idx])
@@ -344,8 +352,10 @@ class TrainerLoop:
                         if self.rank == 0:
                             logger.warning(f"Cannot Load Scheduler {idx}'s State!")
 
+            self.schedulers[0].state_dict()
+
             # save amp states
-            if self.config.training.optimization.fp16:
+            if self.fp16:
                 self.loss_scaler.load_state_dict(trainer_state_dict["amp_state_dict"])
 
             # Random States

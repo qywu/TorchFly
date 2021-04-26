@@ -626,7 +626,7 @@ class TransformerDecoder:
                 dim=1
             )
             sequence_poped = torch.any(check_if_eos)
-            keeped_sequence_indices = (~check_if_eos).nonzero().squeeze(1)
+            keeped_sequence_indices = (~check_if_eos).nonzero(as_tuple=False).squeeze(1)
             if sequence_poped:
                 current_sequence_indices = current_sequence_indices[keeped_sequence_indices]
         return sequence_poped, keeped_sequence_indices, current_sequence_indices
