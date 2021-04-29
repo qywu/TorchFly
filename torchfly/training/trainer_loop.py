@@ -60,7 +60,7 @@ class TrainerLoop:
             torch.distributed.init_process_group(backend='nccl', init_method='env://')
             assert torch.distributed.is_initialized()
 
-        if self.distributed_training:
+        if self.distributed_training and not torch.distributed.is_initialized():
             self.node_rank = os.environ.get("NODE_RANK", "N/A")
             logger.info(
                 f"Initialized Rank:{torch.distributed.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
