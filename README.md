@@ -4,8 +4,7 @@
 
 ## Installment
 
-
-Please download [conda](https://www.anaconda.com/distribution/#download-section) and create a virtual environment first (Python >= 3.6).
+Currently, TorchFly only supports Linux. Please download [conda](https://www.anaconda.com/distribution/#download-section) and create a virtual environment first (Python >= 3.6).
 
 ```bash
 # create virtual env
