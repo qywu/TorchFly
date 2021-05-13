@@ -215,9 +215,9 @@ class TrainLogger(Callback):
 
         if not self.training_in_epoch:
             percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
-            log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
+            log_string = f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
         elif trainer.epoch_num_batches is not None:
-            percent = 100. * trainer.epoch_step_count / (trainer.epoch_num_batches // trainer.gradient_accumulation_batches)
+            percent = 100. * trainer.local_step_count / (trainer.epoch_num_batches // trainer.gradient_accumulation_batches)
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
         else:
             log_string += f"Steps {trainer.global_step_count + 1:5d}"

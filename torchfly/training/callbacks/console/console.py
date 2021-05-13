@@ -11,7 +11,7 @@ from ..events import Events
 from ..callback import Callback, handle_event
 from ....utils.distributed import get_rank
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("console")
 
 Trainer = Any
 
@@ -72,9 +72,20 @@ class Console(Callback):
 
     def call_console(self, trainer: Trainer):
         # TODO: Build a more interactive system
+        logger.warning(
+            """\n
+                          #####################################\n
+                          ##### Entering Trainer Console! #####\n
+                          #####################################\n"""
+        )
         if torch.distributed.is_initialized():
-            logger.warning("Detect distributed training! Please be careful about the nccl timeout! (Default is 30 minutes)")
+            logger.warning(
+                "Detect distributed training! Please be careful about the nccl timeout! (Default is 30 minutes)"
+            )
+
+        logger.warning("PDB is implemented here!")
         breakpoint()
 
     def on_exit(self):
+        # it is important to restore the terminal settings
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
