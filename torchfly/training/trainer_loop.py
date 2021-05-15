@@ -352,7 +352,13 @@ class TrainerLoop:
                         if self.rank == 0:
                             logger.warning(f"Cannot Load Scheduler {idx}'s State!")
 
-            self.schedulers[0].state_dict()
+            if self.config.training.resume.resume_optimizer:
+                for idx, optimizer in enumerate(self.optimizers):
+                    try:
+                        optimizer.load_state_dict(trainer_state_dict["optimizers_state_dict"][idx])
+                    except:
+                        if self.rank == 0:
+                            logger.warning(f"Cannot Load Optimizer {idx}'s State!")
 
             # save amp states
             if self.fp16:
