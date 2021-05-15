@@ -45,7 +45,7 @@ class Resume(Callback):
         else:
             self.restored_states = None
 
-    @handle_event(Events.TRAIN_BEGIN, priority=170)
+    @handle_event(Events.INITIALIZE, priority=1000)
     def load_checkpoint(self, trainer: Trainer):
         # Resume the training
         if self.restored_states and self.config.training.resume.resume:
