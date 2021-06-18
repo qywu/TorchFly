@@ -22,7 +22,7 @@ def init_omegaconf() -> None:
         return time.strftime(pattern, time.localtime())
 
     try:
-        OmegaConf.register_resolver("now", _time_pattern)
+        OmegaConf.register_new_resolver("now", _time_pattern)
     except AssertionError as e:
         logger.warning(e)
 

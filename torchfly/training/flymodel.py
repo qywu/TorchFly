@@ -62,7 +62,7 @@ class FlyModel(nn.Module):
         lr = self.config.training.optimization.learning_rate
         optimizer_name = self.config.training.optimization.optimizer_name
         max_gradient_norm = self.config.training.optimization.max_gradient_norm
-        betas = self.config.training.optimization.betas if self.config.training.optimization.betas else (0.9, 0.999)
+        betas = self.config.training.optimization.betas if self.config.training.optimization.get("betas") else (0.9, 0.999)
 
         if optimizer_name == "AdamW":
             optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
@@ -87,8 +87,8 @@ class FlyModel(nn.Module):
             )
 
         scheduler_name = self.config.training.scheduler.scheduler_name
-        warmup_steps = self.config.training.scheduler.warmup_steps
-        warmup_cycle = self.config.training.scheduler.warmup_cosine_cycle
+        warmup_steps = self.config.training.scheduler.get("warmup_steps", None)
+        warmup_cycle = self.config.training.scheduler.get("warmup_cosine_cycle", None)
 
         if scheduler_name == "Constant":
             scheduler = ConstantLRSchedule(optimizer)
