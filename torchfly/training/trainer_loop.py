@@ -97,7 +97,7 @@ class TrainerLoop:
         self.global_batch_count = 0
         self.global_step_count = 0
         self.epochs_trained = 0
-        self.epoch_step_count = 0
+        self.local_step_count = 0
 
         # Configure optimizers
         self.optimizers, self.schedulers = self.model.configure_optimizers(self.total_num_update_steps)
@@ -220,7 +220,7 @@ class TrainerLoop:
         self.optimizer = self.optimizers[0]
         self.scheduler = self.schedulers[0]
 
-        self.epoch_step_count = 0
+        self.local_step_count = 0
 
         for batch in self.train_dataloader:
             self.callback_handler.fire_event(Events.BATCH_BEGIN)
@@ -233,7 +233,7 @@ class TrainerLoop:
                 # Update the model with optimizer
                 self.step_update(self.model, self.optimizer, self.scheduler)
                 self.global_step_count += 1
-                self.epoch_step_count += 1
+                self.local_step_count += 1
 
             self.callback_handler.fire_event(Events.BATCH_END)
 
@@ -339,7 +339,7 @@ class TrainerLoop:
     def set_trainer_state(self, trainer_state_dict):
         self.epochs_trained = trainer_state_dict["epochs_trained"]
         self.global_step_count = trainer_state_dict["global_step_count"]
-        self.epoch_step_count = trainer_state_dict["epoch_step_count"]
+        self.local_step_count = trainer_state_dict["local_step_count"]
 
         # Resume the training state
         if self.config.training.resume.resume:
@@ -381,7 +381,7 @@ class TrainerLoop:
         trainer_state_dict = {
             "epochs_trained": self.epochs_trained,
             "global_step_count": self.global_step_count,
-            "epoch_step_count": self.epoch_step_count,
+            "local_step_count": self.local_step_count,
             "optimizers_state_dict": [optimizer.state_dict() for optimizer in self.optimizers],
             "schedulers_state_dict": [scheduler.state_dict() for scheduler in self.schedulers],
             "cpu_rng_state": torch.get_rng_state(),

@@ -7,7 +7,6 @@ import torch
 import pickle
 import logging
 from omegaconf import DictConfig
-# from apex import amp
 
 from ..events import Events
 from ..callback import Callback, handle_event

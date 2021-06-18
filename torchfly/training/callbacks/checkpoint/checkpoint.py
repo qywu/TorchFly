@@ -5,7 +5,6 @@ import time
 import torch
 import logging
 from omegaconf import DictConfig
-# from apex import amp
 
 from .checkpointer import Checkpointer
 from ..events import Events

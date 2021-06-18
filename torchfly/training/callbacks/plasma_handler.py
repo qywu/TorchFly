@@ -3,7 +3,6 @@ import sys
 import time
 import torch
 import logging
-from apex import amp
 from omegaconf import DictConfig
 from typing import Any, Dict
 from torchfly.training.data.plasma import init_plasma, get_plasma_manager
