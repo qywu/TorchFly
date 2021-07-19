@@ -10,9 +10,9 @@ import torch.distributed
 from torch.cuda.amp import GradScaler, autocast
 from omegaconf import DictConfig, OmegaConf
 import socket
-import apex
-from apex import amp
-from apex.parallel import DistributedDataParallel, Reducer
+# import apex
+# from apex import amp
+# from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
 # local imports

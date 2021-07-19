@@ -2,8 +2,8 @@ from typing import Any, List, Dict, Iterator, Callable
 import torch
 import torch.nn as nn
 import numpy as np
-import apex
-from apex.parallel import DistributedDataParallel, Reducer
+# import apex
+# from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
 from torchfly.metrics import CategoricalAccuracy, Average, MovingAverage, Speed

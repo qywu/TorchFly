@@ -7,7 +7,7 @@ import math
 # from ...utils.file_utils import gdrive_download
 # from ..cuda import gpt_gelu as gelu
 # assert installed
-from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+# from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
 # from cudatest import GPT_GELU
 
 # pylint:disable=no-member
