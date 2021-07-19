@@ -5,7 +5,7 @@ import torch
 import random
 import numpy as np
 import logging
-from apex import amp
+# from apex import amp
 from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 from omegaconf import DictConfig
@@ -118,21 +118,21 @@ class TrainHandler(Callback):
 
     @handle_event(Events.TRAIN_BEGIN, priority=150)
     def setup_model(self, trainer: Trainer):
+        raise NotImplementedError
+        # trainer.model = move_to_device(trainer.model, trainer.device)
 
-        trainer.model = move_to_device(trainer.model, trainer.device)
+        # # FP16
+        # if self.config.training.fp16:                
+        #     trainer.model, trainer.optimizer = amp.initialize(
+        #         trainer.model, trainer.optimizer, opt_level=self.config.training.fp16_opt_level
+        #     )
 
-        # FP16
-        if self.config.training.fp16:                
-            trainer.model, trainer.optimizer = amp.initialize(
-                trainer.model, trainer.optimizer, opt_level=self.config.training.fp16_opt_level
-            )
-
-        if self.config.training.num_gpus_per_node > 1:
-            # Distributed training (should be after apex fp16 initialization)
-            trainer.model = DistributedDataParallel(trainer.model, delay_allreduce=True)
-            # trainer.model = torch.nn.parallel.DistributedDataParallel(
-            #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
-            # )
+        # if self.config.training.num_gpus_per_node > 1:
+        #     # Distributed training (should be after apex fp16 initialization)
+        #     trainer.model = DistributedDataParallel(trainer.model, delay_allreduce=True)
+        #     # trainer.model = torch.nn.parallel.DistributedDataParallel(
+        #     #     trainer.model, device_ids=[trainer.rank], output_device=trainer.rank, find_unused_parameters=True
+        #     # )
 
     @handle_event(Events.TRAIN_BEGIN, priority=140)
     def configure_scheduler(self, trainer: Trainer):
