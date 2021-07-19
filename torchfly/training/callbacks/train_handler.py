@@ -6,7 +6,7 @@ import random
 import numpy as np
 import logging
 # from apex import amp
-from apex.parallel import DistributedDataParallel, Reducer
+# from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 from omegaconf import DictConfig
 from typing import Any, Dict
