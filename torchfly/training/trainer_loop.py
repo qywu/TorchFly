@@ -172,8 +172,9 @@ class TrainerLoop:
             self.eval_callback = Evaluation(self.config)
             self.add_callback(self.eval_callback)
 
-            self.console_callback = Console(self.config)
-            self.add_callback(self.console_callback)
+            if self.config.training.console:
+                self.console_callback = Console(self.config)
+                self.add_callback(self.console_callback)
 
             self.checkpoint_callback = Checkpoint(self.config)
             self.add_callback(self.checkpoint_callback)

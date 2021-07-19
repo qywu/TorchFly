@@ -22,8 +22,13 @@ class SequenceCrossEntropyLoss(nn.Module):
         return sequence_cross_entropy_with_logits(logits, targets, mask, self.label_smoothing, self.reduce)
 
 
-def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, reduce):
-    # type: (Tensor, Tensor, Tensor, float, bool)-> Tensor
+def sequence_cross_entropy_with_logits(
+    logits: torch.FloatTensor,
+    targets: torch.LongTensor,
+    mask: torch.BoolTensor,
+    label_smoothing: bool,
+    reduce: str = "batch"
+) -> torch.FloatTensor:
     """
     label_smoothing : ``float``, optional (default = 0.0)
         It should be smaller than 1.
@@ -50,6 +55,7 @@ def sequence_cross_entropy_with_logits(logits, targets, mask, label_smoothing, r
     # shape : (batch, sequence_length)
     negative_log_likelihood = negative_log_likelihood_flat.view(-1, logits.shape[1])
 
+    mask = mask.float()
     # shape : (batch, sequence_length)
     loss = negative_log_likelihood * mask
 
