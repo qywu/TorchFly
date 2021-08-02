@@ -66,7 +66,7 @@ class TrainerLoop:
                 f"Initialized Rank:{torch.distributed.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
             )
 
-        logger.info("TrainerLoop is starting!")
+        logger.info("TrainerLoop is initializing!")
 
         # set cuda device
         if config.training.num_gpus_per_node > 0:

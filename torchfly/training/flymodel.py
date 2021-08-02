@@ -20,7 +20,6 @@ class FlyModel(nn.Module):
         super().__init__(*args, **kwargs)
         self.config = config
         self.is_training = True
-        self.configure_metrics()
 
     def set_trainer(self, trainer):
         """
@@ -68,19 +67,8 @@ class FlyModel(nn.Module):
             optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
         elif optimizer_name == "Adafactor":
             raise NotImplementedError
-        elif optimizer_name == "FusedAdam":
-            optimizer = apex.optimizers.FusedAdam(optimizer_grouped_parameters, lr=lr, betas=betas)
         elif optimizer_name == "Adadelta":
             optimizer = torch.optim.Adadelta(optimizer_grouped_parameters, lr=lr)
-        elif optimizer_name == "FusedLAMB":
-            if max_gradient_norm < 0:
-                max_gradient_norm = 1.0
-            else:
-                # avoid a second clip_grad_norm
-                self.config.training.optimization.max_gradient_norm = -1
-            optimizer = apex.optimizers.FusedLAMB(
-                optimizer_grouped_parameters, lr=lr, betas=betas, max_grad_norm=max_gradient_norm
-            )
         else:
             raise NotImplementedError(
                 f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!"
