@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.distributed as dist
 from collections import OrderedDict
 
+imported_flatten_impl = False
+
 
 def import_flatten_impl():
     global flatten_impl, unflatten_impl, imported_flatten_impl
