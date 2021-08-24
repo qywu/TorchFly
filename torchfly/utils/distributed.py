@@ -124,11 +124,11 @@ def mutex(rank=0):
     myrank = get_rank()
 
     if myrank == rank:
-        logger.info(f"Rank {myrank} entering mutex!")
+        print(f"Rank {myrank} entering mutex!")
         yield rank
         barrier()
     else:
-        logger.info(f"Rank {myrank} is locked waiting for rank {rank}!")
+        print(f"Rank {myrank} is locked waiting for rank {rank}!")
         barrier()
         time.sleep(0.1)
         yield rank

@@ -59,8 +59,8 @@ class FlyLogger(metaclass=Singleton):
         if self.overwrite and self.resume:
             raise ValueError("You cannot set `overwrite` and `resume` to True at the same time!")
 
-        # self.initialize()
-        # logger.warning("In the future, you have to use `with` statement to initialize !")
+        self.initialize()
+        logger.warning("In the future, you have to use `with` statement to initialize !")
 
     def initialize(self):
         if self.initialized:

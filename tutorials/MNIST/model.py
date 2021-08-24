@@ -37,6 +37,8 @@ class CNNFlyModel(FlyModel):
     def __init__(self, config):
         super().__init__(config)
         self.model = CNNNet(config.model.conv1_channels, config.model.hidden_size)
+        # configure metrics here
+        self.configure_metrics()
 
     def configure_metrics(self):
         self.training_metrics = {"loss": MovingAverage(), "images/s": Speed()}

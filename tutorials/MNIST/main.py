@@ -64,7 +64,9 @@ def main():
     model = CNNFlyModel(config)
 
     trainer = TrainerLoop(
-        config, model, train_dataloader_fn=data_helper.train_loader_fn, valid_dataloader_fn=data_helper.valid_loader_fn
+        config, model, 
+        train_dataloader_fn=data_helper.train_loader_fn, 
+        valid_dataloader_fn=data_helper.valid_loader_fn
     )
 
     trainer.train()
