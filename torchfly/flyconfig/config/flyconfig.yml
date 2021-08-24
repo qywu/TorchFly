@@ -9,9 +9,10 @@ flyconfig:
 
   # populated at runtime
   runtime:
-    cwd: ???        # Original working directory the app was executed from
+    owd: ???        # Original working directory the app was executed from
+    cwd: ???        # Current working directory the app is from
 
   # Output directory for produced configuration files and overrides.
   # E.g., flyconfig.yaml, overrides.yaml will go here. Useful for debugging
   # and extra context when looking at past runs.
-  output_subdir: ".flyconfig"
+  save_config_dir: ".flyconfig"

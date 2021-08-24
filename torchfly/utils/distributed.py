@@ -53,9 +53,9 @@ def get_rank():
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         rank = torch.distributed.get_rank()
     else:
-        logger.warn(
-            "torch.distributed is not initialized! This function is only supposed to be used after distirbuted initialization"
-        )
+        # logger.warn(
+        #     "torch.distributed is not initialized! This function is only supposed to be used after distirbuted initialization"
+        # )
         rank = 0
     return rank
 

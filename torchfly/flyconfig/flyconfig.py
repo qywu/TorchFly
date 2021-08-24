@@ -169,8 +169,9 @@ class FlyConfig:
         elif "subconfigs" in config:
             del config["subconfigs"]
 
-        # set runtime.cwd
-        config.flyconfig.runtime.cwd = os.getcwd()
+        # save original working directory
+        # set runtime.owd
+        config.flyconfig.runtime.owd = os.getcwd()
         config.flyconfig.runtime.config_path = config_path
 
         return config

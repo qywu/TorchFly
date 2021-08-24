@@ -76,7 +76,7 @@ class TrainerLoop:
             self.device = torch.device("cpu")
 
         # Setup the dataloders
-        self.train_dataloader = train_dataloader_fn()
+        self.train_dataloader = train_dataloader_fn()if train_dataloader_fn else None
         # only rank 0 can setup validation and test dataloder
         if self.rank == 0:
             self.validation_dataloader: Iterable = valid_dataloader_fn() if valid_dataloader_fn else None
@@ -222,6 +222,9 @@ class TrainerLoop:
         self.scheduler = self.schedulers[0]
 
         self.local_step_count = 0
+
+        if self.train_dataloader is None:
+            return
 
         for batch in self.train_dataloader:
             self.callback_handler.fire_event(Events.BATCH_BEGIN)
