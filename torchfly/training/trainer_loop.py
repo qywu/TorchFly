@@ -23,6 +23,7 @@ from torchfly.training.callbacks import Checkpoint, Evaluation, Console, Resume
 from torchfly.flylogger.train_logger import TrainLogger
 from torchfly.common import move_to_device
 from torchfly.training import FlyModel
+from torchfly.training.reducer import Reducer
 
 import logging
 
@@ -32,14 +33,13 @@ logger = logging.getLogger(__name__)
 
 
 class TrainerLoop:
-    def __init__(
-        self,
-        config: DictConfig,
-        model: FlyModel,
-        train_dataloader_fn: Callable,
-        valid_dataloader_fn: Callable = None,
-        test_dataloader_fn: Callable = None
-    ):
+
+    def __init__(self,
+                 config: DictConfig,
+                 model: FlyModel,
+                 train_dataloader_fn: Callable,
+                 valid_dataloader_fn: Callable = None,
+                 test_dataloader_fn: Callable = None):
         """
         Args:
             config: FlyConfig dictionary
@@ -76,16 +76,17 @@ class TrainerLoop:
             self.device = torch.device("cpu")
 
         # Setup the dataloders
-        self.train_dataloader = train_dataloader_fn()if train_dataloader_fn else None
+        self.train_dataloader = train_dataloader_fn() if train_dataloader_fn else None
         # only rank 0 can setup validation and test dataloder
         if self.rank == 0:
             self.validation_dataloader: Iterable = valid_dataloader_fn() if valid_dataloader_fn else None
             self.test_dataloader = test_dataloader_fn() if test_dataloader_fn else None
 
         # Setup callback handler
-        self.callback_handler = CallbackHandler(
-            config, trainer=self, callbacks=[], verbose=config.training.logging.level == "DEBUG"
-        )
+        self.callback_handler = CallbackHandler(config,
+                                                trainer=self,
+                                                callbacks=[],
+                                                verbose=config.training.logging.level == "DEBUG")
 
         # constants
         self.fp16 = config.training.fp16
