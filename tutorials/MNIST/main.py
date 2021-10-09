@@ -58,7 +58,6 @@ def main():
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
     config = FlyConfig.load()
-    fly_logger = FlyLogger(config, overwrite=True)
     data_helper = DataLoaderHelper(config)
 
     model = CNNFlyModel(config)
@@ -69,8 +68,8 @@ def main():
         valid_dataloader_fn=data_helper.valid_loader_fn
     )
 
-    trainer.train()
-
+    with FlyLogger(config, overwrite=True) as flylogger:
+        trainer.train()
 
 if __name__ == "__main__":
     main()
