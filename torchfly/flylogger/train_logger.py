@@ -206,7 +206,7 @@ class TrainLogger(Callback):
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
 
-        items_per_second = elapsed_steps * self.config.training.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
+        # items_per_second = elapsed_steps * self.config.training.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
         log_string = (
@@ -216,13 +216,17 @@ class TrainLogger(Callback):
         if not self.training_in_epoch:
             percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
             log_string = f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
+            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent)))
+            log_string += f" | ETA:{eta}"
         elif trainer.epoch_num_batches is not None:
             percent = 100. * trainer.local_step_count / (trainer.epoch_num_batches // trainer.gradient_accumulation_batches)
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
+            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent)))
+            log_string += f" | ETA:{eta}"
         else:
             log_string += f"Steps {trainer.global_step_count + 1:5d}"
 
-        log_string += f" | item/s {items_per_second:5.1f}"
+        # log_string += f" | item/s {items_per_second:5.1f}"
 
         metrics = trainer.model.get_training_metrics()
 
@@ -247,7 +251,7 @@ class TrainLogger(Callback):
 
         logger.info(log_string)
 
-        self.tensorboard.add_scalar("train/items_per_second", items_per_second, trainer.global_step_count)
+        # self.tensorboard.add_scalar("train/items_per_second", items_per_second, trainer.global_step_count)
         self.tensorboard.add_scalar("train/cumulative_time", self.cumulative_time, trainer.global_step_count)
 
         self.last_log_time = time.time()

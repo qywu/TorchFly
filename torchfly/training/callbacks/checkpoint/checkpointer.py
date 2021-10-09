@@ -34,8 +34,9 @@ class Checkpointer:
         self._saved_checkpoint_paths: List[Tuple[float, str]] = []
         self._last_checkpoint_time = datetime.datetime.now()
         self.background_tasks = []
+        self.initialized = False
 
-        os.makedirs(storage_dir, exist_ok=True)
+        
 
     def save_checkpoint(self, stamp: str, model_state_dict: Dict[str, Any], trainer_state_dict: Dict[str, Any]) -> None:
         """
@@ -43,6 +44,10 @@ class Checkpointer:
             stamp: A string to identify the checkpoint. It can just be the epoch number
             states: A dictionary to store all necessary information for later restoring
         """
+        if not self.initialized:
+            os.makedirs(self.storage_dir, exist_ok=True)
+            self.initialized = True
+
         # synchronize background tasks
         if self.sync_every_save and self.async_save:
             for process in self.background_tasks:

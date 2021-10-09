@@ -23,7 +23,7 @@ def init_omegaconf() -> None:
 
     try:
         OmegaConf.register_new_resolver("now", _time_pattern)
-    except AssertionError as e:
+    except (AssertionError, ValueError) as e:
         logger.warning(e)
 
 
