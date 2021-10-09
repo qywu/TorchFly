@@ -58,13 +58,15 @@ def main():
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
     config = FlyConfig.load()
-    fly_logger = FlyLogger(config)
+    fly_logger = FlyLogger(config, overwrite=True)
     data_helper = DataLoaderHelper(config)
 
     model = CNNFlyModel(config)
 
     trainer = TrainerLoop(
-        config, model, train_dataloader_fn=data_helper.train_loader_fn, valid_dataloader_fn=data_helper.valid_loader_fn
+        config, model, 
+        train_dataloader_fn=data_helper.train_loader_fn, 
+        valid_dataloader_fn=data_helper.valid_loader_fn
     )
 
     trainer.train()

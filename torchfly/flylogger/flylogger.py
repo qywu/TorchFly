@@ -78,12 +78,12 @@ class FlyLogger(metaclass=Singleton):
 
         if not os.path.exists(cwd):
             # if cwd does not exist, directly create it
-            with distributed.mutex(rank=0):
+            if self.rank == 0:
                 os.makedirs(cwd)
                 self.save_config(os.path.join(cwd, save_config_dir))
         elif self.overwrite:
             # remove cwd and create a new one
-            with distributed.mutex(rank=0):
+            if self.rank == 0:
                 logger.warning("Overwriting the current working directory!")
                 shutil.rmtree(cwd)
                 os.makedirs(cwd)
@@ -103,10 +103,12 @@ class FlyLogger(metaclass=Singleton):
             cwd = copy_dir
             self.config.flyconfig.runtime.cwd = cwd
 
-            with distributed.mutex(rank=0):
-                os.makedirs(copy_dir, exist_ok=True)
+            if self.rank == 0:
+                os.makedirs(copy_dir)
                 self.save_config(os.path.join(cwd, save_config_dir))
 
+        distributed.barrier()
+        
         # change the directory as in config
         if self.chdir:
             os.chdir(self.config.flyconfig.run.dir)

@@ -12,7 +12,7 @@ python main.py --config config/config.yaml
 For distributed training, please use `torch.distributed.launch`. See the example below:
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node=2 main.py --config config/config.yaml training.num_gpus_per_node=2
+python -m torch.distributed.launch --nproc_per_node=4 main.py --config config/config.yaml training.num_gpus_per_node=4
 ```
 
 

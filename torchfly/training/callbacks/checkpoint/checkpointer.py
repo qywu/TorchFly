@@ -18,14 +18,13 @@ class Checkpointer:
         keep_checkpoint_every_num_seconds: Keep checkpoints every x number of seconds without removing them
         storage_dir: Location to store the checkpoints
     """
-    def __init__(
-        self,
-        sync_every_save: bool = True,
-        async_save=False,
-        num_checkpoints_to_keep: int = 1000,
-        keep_checkpoint_every_num_seconds: float = 3600,
-        storage_dir: str = "Checkpoints"
-    ):
+
+    def __init__(self,
+                 sync_every_save: bool = True,
+                 async_save=False,
+                 num_checkpoints_to_keep: int = 1000,
+                 keep_checkpoint_every_num_seconds: float = 3600,
+                 storage_dir: str = "Checkpoints"):
         self.sync_every_save = sync_every_save
         self.async_save = async_save
         self.num_checkpoints_to_keep = num_checkpoints_to_keep
@@ -35,8 +34,6 @@ class Checkpointer:
         self._last_checkpoint_time = datetime.datetime.now()
         self.background_tasks = []
         self.initialized = False
-
-        
 
     def save_checkpoint(self, stamp: str, model_state_dict: Dict[str, Any], trainer_state_dict: Dict[str, Any]) -> None:
         """
@@ -129,18 +126,14 @@ class Checkpointer:
 
     def state_dict(self):
         states = {
-            "_saved_checkpoint_paths":
-                [
-                    (str(saved_time), model_path, trainer_path)
-                    for saved_time, model_path, trainer_path in self._saved_checkpoint_paths
-                ],
+            "_saved_checkpoint_paths": [(str(saved_time), model_path, trainer_path)
+                                        for saved_time, model_path, trainer_path in self._saved_checkpoint_paths],
             "_last_checkpoint_time": str(self._last_checkpoint_time)
         }
         return states
 
     def load_state_dict(self, states: Dict[str, Any]):
-        self._saved_checkpoint_paths = [
-            (datetime.datetime.strptime(saved_time, '%Y-%m-%d %H:%M:%S.%f'), model_path, trainer_path)
-            for saved_time, model_path, trainer_path in states["_saved_checkpoint_paths"]
-        ]
+        self._saved_checkpoint_paths = [(datetime.datetime.strptime(saved_time,
+                                                                    '%Y-%m-%d %H:%M:%S.%f'), model_path, trainer_path)
+                                        for saved_time, model_path, trainer_path in states["_saved_checkpoint_paths"]]
         self._last_checkpoint_time = datetime.datetime.strptime(states["_last_checkpoint_time"], '%Y-%m-%d %H:%M:%S.%f')

@@ -6,7 +6,7 @@ import numpy as np
 import tqdm
 import torch
 import torch.nn as nn
-import torch.distributed
+import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from omegaconf import DictConfig, OmegaConf
 import socket
@@ -190,6 +190,8 @@ class TrainerLoop:
         # Distributed training (should be after apex fp16 initialization)
         self.distributed_training = True
         self.reducer = Reducer(self.model)
+        # for param in self.model.parameters():
+        #     dist.broadcast(param.data, 0)
 
         # self.model = DistributedDataParallel(self.model, delay_allreduce=True)
         # trainer.model = torch.nn.parallel.DistributedDataParallel(
