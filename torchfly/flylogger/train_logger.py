@@ -11,7 +11,6 @@ from omegaconf import DictConfig, OmegaConf
 from colorlog import colorlog
 import atexit
 
-
 from torchfly.flyconfig import FlyConfig
 from torchfly.training.callbacks.events import Events
 from torchfly.training.callbacks.callback import Callback, handle_event
@@ -50,6 +49,7 @@ class TrainLogger(Callback):
     """
     Callback that handles all Tensorboard logging.
     """
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
 
@@ -77,7 +77,6 @@ class TrainLogger(Callback):
     @handle_event(Events.INITIALIZE, priority=100)
     def report_init_config(self, trainer: Trainer):
         logger.info(FlyConfig.print(self.config))
-
 
     # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=155)
@@ -209,22 +208,26 @@ class TrainLogger(Callback):
         # items_per_second = elapsed_steps * self.config.training.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
-        log_string = (
-            f"Epoch {trainer.epochs_trained + 1:2d} "
-        )
+        log_string = (f"Epoch {trainer.epochs_trained + 1:2d} ")
 
+        # only know number of steps, has no info about number of batchs in a epoch
         if not self.training_in_epoch:
             percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
             log_string = f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
             eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent)))
             log_string += f" | ETA:{eta}"
+        # has info about number of batchs in a epoch
         elif trainer.epoch_num_batches is not None:
-            percent = 100. * trainer.local_step_count / (trainer.epoch_num_batches // trainer.gradient_accumulation_batches)
+            percent = 100. * trainer.local_step_count / (trainer.epoch_num_batches //
+                                                         trainer.gradient_accumulation_batches)
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
-            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent)))
+            epoch_elapsed_time = time.time() - self.epoch_start_time
+            eta = str(datetime.timedelta(seconds=int(epoch_elapsed_time / percent)))
             log_string += f" | ETA:{eta}"
+        # training forever
         else:
             log_string += f"Steps {trainer.global_step_count + 1:5d}"
+            logger.warning("Not designed this way! `trainer.total_num_update_steps` not set")
 
         # log_string += f" | item/s {items_per_second:5.1f}"
 
