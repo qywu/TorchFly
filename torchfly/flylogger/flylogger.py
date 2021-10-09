@@ -109,10 +109,10 @@ class FlyLogger(metaclass=Singleton):
 
         distributed.barrier()
         
-        # change the directory as in config
+        # change the directory to the desired current working directory
         if self.chdir:
-            os.chdir(self.config.flyconfig.run.dir)
-            self.config.flyconfig.runtime.cwd = os.getcwd()
+            os.chdir(self.config.flyconfig.runtime.cwd)
+            # self.config.flyconfig.runtime.cwd = os.getcwd()
 
         # configure logging, FlyLogger should only configure rank 0
         # other ranks should use their own logger

@@ -214,7 +214,7 @@ class TrainLogger(Callback):
         if not self.training_in_epoch:
             percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
             log_string = f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
-            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent)))
+            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent * 100)))
             log_string += f" | ETA:{eta}"
         # has info about number of batchs in a epoch
         elif trainer.epoch_num_batches is not None:
@@ -222,7 +222,7 @@ class TrainLogger(Callback):
                                                          trainer.gradient_accumulation_batches)
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
             epoch_elapsed_time = time.time() - self.epoch_start_time
-            eta = str(datetime.timedelta(seconds=int(epoch_elapsed_time / percent)))
+            eta = str(datetime.timedelta(seconds=int(epoch_elapsed_time / percent * 100)))
             log_string += f" | ETA:{eta}"
         # training forever
         else:
