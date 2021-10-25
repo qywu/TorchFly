@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import os
 import sys
 import time
@@ -23,6 +23,7 @@ class Resume(Callback):
     """
     Callback that resumes the training from a checkpoint
     """
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
         self.storage_dir = self.config.training.checkpointing.directory
@@ -57,7 +58,7 @@ class Resume(Callback):
             file_path = self.restored_states[2]
             print(f"RANK {get_rank()} has loaded checkpoint at {file_path}!")
 
-    def restore_latest_checkpoint(self, dirpath) -> [Dict, None]:
+    def restore_latest_checkpoint(self, dirpath) -> Union[Dict, None]:
         """
         Returns:
             state_dict: return the checkpoint's state dict. None if there is nothing.
