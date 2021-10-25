@@ -49,7 +49,6 @@ class TrainLogger(Callback):
     """
     Callback that handles all Tensorboard logging.
     """
-
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
 
@@ -212,14 +211,15 @@ class TrainLogger(Callback):
 
         # only know number of steps, has no info about number of batchs in a epoch
         if not self.training_in_epoch:
-            percent = 100. * trainer.global_step_count / trainer.total_num_update_steps
+            percent = 100. * trainer.global_step_count / trainer.total_num_update_steps + 1e-6
             log_string = f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
-            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent * 100 - self.cumulative_time )))
+            eta = str(datetime.timedelta(seconds=int(self.cumulative_time / percent * 100 - self.cumulative_time)))
             log_string += f" | ETA:{eta}"
         # has info about number of batchs in a epoch
         elif trainer.epoch_num_batches is not None:
-            percent = 100. * trainer.local_step_count / (trainer.epoch_num_batches //
-                                                         trainer.gradient_accumulation_batches)
+            percent = 100. * trainer.local_step_count / (
+                trainer.epoch_num_batches // trainer.gradient_accumulation_batches
+            ) + 1e-6
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
             epoch_elapsed_time = time.time() - self.epoch_start_time
             eta = str(datetime.timedelta(seconds=int(epoch_elapsed_time / percent * 100 - epoch_elapsed_time)))
