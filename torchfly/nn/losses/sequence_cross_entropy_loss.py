@@ -8,27 +8,29 @@ from typing import Any
 
 
 class SequenceCrossEntropyLoss(nn.Module):
-    def __init__(self, label_smoothing=-1, reduce=None):
+
+    def __init__(self, label_smoothing=-1, ignore_index=-1, reduce=None):
         """
-        reduce: None, "batch", "sentence"
+        reduce: None, "mean", "sentence"
         """
         super().__init__()
         self.reduce = reduce
         self.label_smoothing = label_smoothing
-        if not self.reduce in [None, "none", "batch", "sentence"]:
+        self.ignore_index = ignore_index
+        if not self.reduce in [None, "none", "mean", "batch", "batch-sequence"]:
             raise NotImplementedError
 
-    def forward(self, logits, targets, mask):
+    def forward(self, logits: torch.FloatTensor, targets: torch.LongTensor, mask=None):
+        if mask is None:
+            mask = targets != self.ignore_index
         return sequence_cross_entropy_with_logits(logits, targets, mask, self.label_smoothing, self.reduce)
 
 
-def sequence_cross_entropy_with_logits(
-    logits: torch.FloatTensor,
-    targets: torch.LongTensor,
-    mask: torch.BoolTensor,
-    label_smoothing: bool,
-    reduce: str = "batch"
-) -> torch.FloatTensor:
+def sequence_cross_entropy_with_logits(logits: torch.FloatTensor,
+                                       targets: torch.LongTensor,
+                                       mask: torch.BoolTensor,
+                                       label_smoothing: bool,
+                                       reduce: str = "mean") -> torch.FloatTensor:
     """
     label_smoothing : ``float``, optional (default = 0.0)
         It should be smaller than 1.
@@ -59,11 +61,14 @@ def sequence_cross_entropy_with_logits(
     # shape : (batch, sequence_length)
     loss = negative_log_likelihood * mask
 
-    if reduce:
+    if reduce == "mean":
+        loss = loss.sum() / (mask.sum() + 1e-13)
+    elif reduce == "batch":
         # shape : (batch,)
+        loss = loss.sum(1) / (mask.sum(1) + 1e-13)
+    elif reduce == "batch-sequence":
         # we favor longer sequences, so we don't divide with the total sequence length here
-        loss = loss.sum(1)  # / (mask.sum(1) + 1e-13)
-        if reduce is "batch":
-            # shape : scalar
-            loss = loss.mean()
+        # shape : (batch,)
+        loss = loss.sum(1)
+
     return loss
