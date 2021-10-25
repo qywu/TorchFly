@@ -60,7 +60,7 @@ class Evaluation(Callback):
             self._evaluation(trainer)
             self.started = True
 
-    @handle_event(Events.BATCH_END)
+    @handle_event(Events.STEP_END)
     def on_batch_end(self, trainer: Trainer):
         if not self.evaluate_in_epoch:
             # Check evaluation
