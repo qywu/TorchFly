@@ -17,7 +17,7 @@ import socket
 
 # local imports
 import torchfly
-from torchfly.utilities.distributed import barrier
+from torchfly.distributed import barrier
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
 from torchfly.training.callbacks import Checkpoint, Evaluation, Console, Resume
 from torchfly.flylogger.train_logger import TrainLogger
