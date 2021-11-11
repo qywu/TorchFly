@@ -21,6 +21,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# pylint:disable=no-member
+
 
 def init_distributed(cuda=True):
     """

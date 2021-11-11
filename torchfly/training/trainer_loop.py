@@ -33,13 +33,14 @@ logger = logging.getLogger(__name__)
 
 
 class TrainerLoop:
-
-    def __init__(self,
-                 config: DictConfig,
-                 model: FlyModel,
-                 train_dataloader_fn: Callable,
-                 valid_dataloader_fn: Callable = None,
-                 test_dataloader_fn: Callable = None):
+    def __init__(
+        self,
+        config: DictConfig,
+        model: FlyModel,
+        train_dataloader_fn: Callable,
+        valid_dataloader_fn: Callable = None,
+        test_dataloader_fn: Callable = None
+    ):
         """
         Args:
             config: FlyConfig dictionary
@@ -83,10 +84,9 @@ class TrainerLoop:
             self.test_dataloader = test_dataloader_fn() if test_dataloader_fn else None
 
         # Setup callback handler
-        self.callback_handler = CallbackHandler(config,
-                                                trainer=self,
-                                                callbacks=[],
-                                                verbose=config.training.logging.level == "DEBUG")
+        self.callback_handler = CallbackHandler(
+            config, trainer=self, callbacks=[], verbose=config.training.logging.level == "DEBUG"
+        )
 
         # constants
         self.fp16 = config.training.fp16
