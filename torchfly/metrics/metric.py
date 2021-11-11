@@ -1,7 +1,7 @@
 import torch
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-from ..common.registrable import Registrable
+from ..utilities.registrable import Registrable
 
 
 class Metric(Registrable):

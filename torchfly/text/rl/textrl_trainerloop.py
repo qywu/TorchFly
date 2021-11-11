@@ -10,7 +10,7 @@ import logging
 from torchfly.training import TrainerLoop
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
 from torchfly.training.callbacks import Checkpoint
-from torchfly.common import move_to_device
+from torchfly.utilities import move_to_device
 from . import TextRLReplayBuffer, TextRLRewardFunc, TextRLLogHandler
 
 logger = logging.getLogger(__name__)

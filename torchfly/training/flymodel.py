@@ -7,7 +7,7 @@ import numpy as np
 # from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
-from torchfly.common import move_to_device
+from torchfly.utilities import move_to_device
 from torchfly.metrics import CategoricalAccuracy, Average, MovingAverage, Speed
 from torchfly.training.schedulers import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
     WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule

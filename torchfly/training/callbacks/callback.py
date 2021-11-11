@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 from typing import Any, Callable
 
 from .events import Events
-from ...common.registrable import Registrable
+from ...utilities.registrable import Registrable
 
 logger = logging.getLogger(__name__)
 Trainer = Any

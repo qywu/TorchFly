@@ -17,11 +17,11 @@ import socket
 
 # local imports
 import torchfly
-from torchfly.utils.distributed import barrier
+from torchfly.utilities.distributed import barrier
 from torchfly.training.callbacks import Callback, CallbackHandler, Events
 from torchfly.training.callbacks import Checkpoint, Evaluation, Console, Resume
 from torchfly.flylogger.train_logger import TrainLogger
-from torchfly.common import move_to_device
+from torchfly.utilities import move_to_device
 from torchfly.training import FlyModel
 from torchfly.training.reducer import Reducer
 
