@@ -11,7 +11,7 @@ import argparse
 import re
 import torch
 
-import torchfly.utils.distributed as distributed
+import torchfly.utilities.distributed as distributed
 
 logger = logging.getLogger(__name__)
 
