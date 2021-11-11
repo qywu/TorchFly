@@ -10,7 +10,7 @@ from omegaconf import DictConfig
 
 from ..events import Events
 from ..callback import Callback, handle_event
-from ....utils.distributed import get_rank
+from ....utilities.distributed import get_rank
 
 logger = logging.getLogger("resumer")
 
