@@ -9,12 +9,13 @@ training:
     gradient_accumulation_batches: 1
     console: False
     resume:
-        resume: False
+        enabled: False
         resume_model: True
         resume_optimizer: True
         resume_scheduler: True
         resume_rng_state: True
     checkpointing:
+        enabled: False
         async_save: false
         directory: "Checkpoints"
         steps_interval: -1
@@ -35,10 +36,12 @@ training:
         eta_min: 1e-6
         warmup_steps: 0
     evaluation:
+        enabled: True
         batch_size: 16
         seconds_interval: -1
         steps_interval: -1 # -1 for after every epoch, but will be disabled if total_num.epochs = -1
         after_num_steps: 0
+        save_top_k_models: 999999
     total_num:
         epochs: 10
         update_steps: -1 # disabled when total_num.epochs < 0

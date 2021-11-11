@@ -6,7 +6,7 @@ transformers
 tqdm
 regex
 overrides
-omegaconf
+omegaconf>=2.1
 pyarrow
 colorlog
 hydra-core

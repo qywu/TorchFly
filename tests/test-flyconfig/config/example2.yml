@@ -1,5 +1,0 @@
-task:
-    name: example2
-subconfigs:
-    - model: model_base
-    - training: 1gpu

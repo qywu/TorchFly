@@ -55,7 +55,7 @@ class CNNFlyModel(FlyModel):
 
         return results
 
-    def predict(self, batch):
+    def predict_step(self, batch):
         x, target = batch
 
         output = self.model(x)
@@ -79,5 +79,5 @@ class CNNFlyModel(FlyModel):
     def get_evaluation_metrics(self) -> Dict[str, str]:
         loss = self.evaluation_metrics["loss"].get_metric()
         acc = self.evaluation_metrics["acc"].get_metric()
-        metrics = {"loss": f"{loss:.4f}", "acc": f"{acc:.4f}"}
+        metrics = {"loss": (f"{loss:.4f}", loss), "acc": (f"{acc:.4f}", acc), "score": (f"{acc:.4f}", acc)}
         return metrics

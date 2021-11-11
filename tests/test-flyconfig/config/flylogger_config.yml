@@ -1,0 +1,7 @@
+task:
+    name: example2
+flylogger:
+    run:
+        # Specify the working directory
+        # ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+        dir: ${flyconfig.runtime.owd}/../exp_outputs/${task.name}/exp001

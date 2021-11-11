@@ -26,13 +26,13 @@ class Resume(Callback):
 
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
-        self.storage_dir = self.config.training.checkpointing.directory
+        self.storage_dir = self.config.checkpointing.directory
         self.restored_states = None
 
     @handle_event(Events.INITIALIZE, priority=199)
     def setup(self, trainer: Trainer):
         # Search for the latest checkpoint
-        if self.config.training.resume.resume:
+        if self.config.resume.resume:
             logger.info("Try to restore the latest checkpoint")
             self.restored_states = self.restore_latest_checkpoint(self.storage_dir)
 
@@ -48,9 +48,9 @@ class Resume(Callback):
     @handle_event(Events.INITIALIZE, priority=1000)
     def load_checkpoint(self, trainer: Trainer):
         # Resume the training
-        if self.restored_states and self.config.training.resume.resume:
+        if self.restored_states and self.config.resume.resume:
             # Load Model State
-            if self.config.training.resume.resume_model:
+            if self.config.resume.resume_model:
                 trainer.set_model_state(self.restored_states[0])
             # Load Everything Else
             trainer.set_trainer_state(self.restored_states[1])

@@ -48,7 +48,7 @@ def search_config(config_dir, config_name) -> str:
             if os.path.exists(yaml_file):
                 return yaml_file
         # if nothing is found
-        raise ValueError(f"Cannot find {yaml_file}! Please check if the file exists.")
+        raise ValueError(f"Cannot find {config_name}! Please check if the file exists.")
     # if the file extension is provided
     elif ext in yaml_exts:
         return os.path.join(config_dir, config_name)
@@ -127,7 +127,7 @@ def search_argv_config_path():
                 raise ValueError(f"Cannot find {config_path}! Please specify a valid path.")
 
             return config_path
-    
+
     # if argv does not provide config_path
     return None
 
@@ -145,6 +145,7 @@ class FlyConfig:
             logger.warning(
                 f"Overriding the original config {config_path} with the command-line argument {argv_config_path}"
             )
+            config_path = argv_config_path
         elif config_path is None and argv_config_path is None:
             raise ValueError("Please specify `config_path` in the argument or command-line!")
         elif config_path is None and argv_config_path is not None:
@@ -154,14 +155,22 @@ class FlyConfig:
         user_config = load_config(config_path)
         # load system's default config
         flyconfig_module_path = os.path.dirname(os.path.abspath(torchfly.flyconfig.__file__))
-        system_config_path = os.path.join(flyconfig_module_path, "config", "flyconfig.yml")
-        system_config = load_config(system_config_path)
 
-        # combine user and system config
-        config = OmegaConf.merge(system_config, user_config)
+        if "flylogger" in user_config:
+            flylogger_config_path = os.path.join(flyconfig_module_path, "config", "flyconfig.yml")
+            flylogger_config = load_config(flylogger_config_path)
+            if user_config.flylogger == None:
+                del user_config.flylogger
+            # combine user and system config
+            config = OmegaConf.merge(flylogger_config, user_config)
+        else:
+            config = user_config
 
         # override configuration from the arguments parsing
         config = override_config(sys.argv[1:], config_dir=os.path.dirname(config_path), config=config)
+
+        if "training" not in user_config and "training" in config:
+            del config.training
 
         # clean subconfigs in config as we don't need it anymore
         if "defaults" in config:
@@ -171,15 +180,16 @@ class FlyConfig:
 
         # save original working directory
         # set runtime.owd
-        config.flyconfig.runtime.owd = os.getcwd()
-        config.flyconfig.runtime.config_path = config_path
+        if "flylogger" in config:
+            config.flylogger.runtime.owd = os.getcwd()
+            config.flylogger.runtime.config_path = config_path
 
         return config
 
     @staticmethod
     def print(config):
         new_config = copy.copy(config)
-        del new_config["flyconfig"]
+        del new_config["flylogger"]
         # print(OmegaConf.to_yaml(new_config))
         return OmegaConf.to_yaml(new_config)
 

@@ -55,27 +55,27 @@ class TrainLogger(Callback):
         self.cumulative_time = 0.0
 
         # Log in seconds or steps
-        if config.training.logging.steps_interval > 0:
+        if config.logging.steps_interval > 0:
             self.log_in_seconds = False
         else:
-            if config.training.logging.seconds_interval < 0:
-                raise NotImplementedError("config.training.logging.seconds_interval must be larger than 0")
+            if config.logging.seconds_interval < 0:
+                raise NotImplementedError("config.logging.seconds_interval must be larger than 0")
             self.log_in_seconds = True
 
         # # Train in epochs or steps
-        if config.training.total_num.epochs > 0:
+        if config.total_num.epochs > 0:
             self.training_in_epoch = True
         else:
-            if config.training.total_num.update_steps < 0:
-                raise NotImplementedError("config.training.total_num.updated_steps must be larger than 0")
+            if config.total_num.update_steps < 0:
+                raise NotImplementedError("config.total_num.updated_steps must be larger than 0")
             self.training_in_epoch = False
 
         # correctly handles exception
         atexit.register(self.__del__)
 
     @handle_event(Events.INITIALIZE, priority=100)
-    def report_init_config(self, trainer: Trainer):
-        logger.info(FlyConfig.print(self.config))
+    def report_training_config(self, trainer: Trainer):
+        logger.info(OmegaConf.to_yaml(self.config))
 
     # Setup timing
     @handle_event(Events.TRAIN_BEGIN, priority=155)
@@ -121,10 +121,10 @@ class TrainLogger(Callback):
             current_time = time.time()
             iter_elapsed_time = current_time - self.last_log_time
 
-            if iter_elapsed_time > self.config.training.logging.seconds_interval:
+            if iter_elapsed_time > self.config.logging.seconds_interval:
                 self.log(trainer)
         else:
-            if (trainer.global_step_count + 1) % self.config.training.logging.steps_interval == 0:
+            if (trainer.global_step_count + 1) % self.config.logging.steps_interval == 0:
                 self.log(trainer)
 
     @handle_event(Events.EPOCH_END, priority=100)
@@ -139,62 +139,6 @@ class TrainLogger(Callback):
         # self.tensorboard.close()
         logger.info("Training Finishes!")
 
-    @handle_event(Events.VALIDATE_BEGIN)
-    def info_valid_begin(self, trainer: Trainer):
-        if trainer.validation_dataloader is not None:
-            logger.info(f"Validation starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
-            self.eval_start_time = time.time()
-
-    @handle_event(Events.VALIDATE_END)
-    def show_valid_metrics(self, trainer: Trainer):
-        if trainer.validation_dataloader is not None:
-            log_string = f"Validation at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
-            metrics = trainer.model.get_evaluation_metrics()
-            # loop over all the metrics
-            for metric_name, value in metrics.items():
-                # if value is tuple, parse it
-                if isinstance(value, tuple):
-                    display_value, value = value
-                else:
-                    display_value = value
-
-                log_string += f" | {metric_name} {display_value}"
-                # tensorboard
-                try:
-                    value = float(value)
-                    self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
-                except:
-                    pass
-            logger.info(log_string)
-
-    @handle_event(Events.TEST_BEGIN)
-    def info_test_begin(self, trainer: Trainer):
-        if trainer.test_dataloader is not None:
-            logger.info(f"Test starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
-            self.eval_start_time = time.time()
-
-    @handle_event(Events.TEST_END)
-    def show_test_metrics(self, trainer: Trainer):
-        if trainer.test_dataloader is not None:
-            log_string = f"Test at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
-            metrics = trainer.model.get_evaluation_metrics()
-            # loop over all the metrics
-            for metric_name, value in metrics.items():
-                # if value is tuple, parse it
-                if isinstance(value, tuple):
-                    display_value, value = value
-                else:
-                    display_value = value
-
-                log_string += f" | {metric_name} {display_value}"
-                # tensorboard
-                try:
-                    value = float(value)
-                    self.tensorboard.add_scalar("test/" + metric_name, value, global_step=trainer.global_step_count)
-                except:
-                    pass
-            logger.info(log_string)
-
     def log(self, trainer: Trainer):
         """
         Args:
@@ -204,7 +148,7 @@ class TrainLogger(Callback):
         iter_elapsed_time = time.time() - self.last_log_time
         elapsed_steps = trainer.global_step_count - self.last_log_global_step
 
-        # items_per_second = elapsed_steps * self.config.training.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
+        # items_per_second = elapsed_steps * self.config.batch_size * trainer.gradient_accumulation_batches * trainer.world_size / iter_elapsed_time
         self.cumulative_time += iter_elapsed_time
 
         log_string = (f"Epoch {trainer.epochs_trained + 1:2d} ")
@@ -217,9 +161,7 @@ class TrainLogger(Callback):
             log_string += f" | ETA:{eta}"
         # has info about number of batchs in a epoch
         elif trainer.epoch_num_batches is not None:
-            percent = 100. * trainer.local_step_count / (
-                trainer.epoch_num_batches // trainer.gradient_accumulation_batches
-            ) + 1e-6
+            percent = 100. * trainer.local_step_count / (max(trainer.epoch_num_batches // trainer.gradient_accumulation_batches, 1)) + 1e-6
             log_string += f"Steps {trainer.global_step_count + 1:5d} [{percent:7.4f}%]"
             epoch_elapsed_time = time.time() - self.epoch_start_time
             eta = str(datetime.timedelta(seconds=int(epoch_elapsed_time / percent * 100 - epoch_elapsed_time)))

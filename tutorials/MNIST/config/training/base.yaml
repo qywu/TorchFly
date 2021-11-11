@@ -4,7 +4,9 @@ training:
     batch_size: 32
     gradient_accumulation_batches: 1
     resume:
-        resume: False
+        enabled: False
+    evaluation:
+        save_top_k_models: 3
     total_num:
         epochs: 20
         update_steps: -1 # disabled when total_num.epochs < 0

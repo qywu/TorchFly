@@ -1,7 +1,7 @@
 subconfigs:
     - model: base
     - training: base
-flyconfig:
+flylogger:
     run:
         # Specify the working directory
         # ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

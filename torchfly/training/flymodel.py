@@ -1,4 +1,5 @@
 from typing import Any, List, Dict, Iterator, Callable
+import tqdm
 import torch
 import torch.nn as nn
 import numpy as np
@@ -6,6 +7,7 @@ import numpy as np
 # from apex.parallel import DistributedDataParallel, Reducer
 # from torch.nn.parallel import DistributedDataParallel
 
+from torchfly.common import move_to_device
 from torchfly.metrics import CategoricalAccuracy, Average, MovingAverage, Speed
 from torchfly.training.schedulers import ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule, \
     WarmupLinearSchedule, WarmupCosineWithHardRestartsSchedule
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class FlyModel(nn.Module):
+
     def __init__(self, config, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = config
@@ -27,7 +30,7 @@ class FlyModel(nn.Module):
         """
         self.trainer = trainer
 
-    def predict(self, *args, **kwargs):
+    def predict_step(self, batch_idx, dataloder_idx=0, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
     def get_metrics(self, reset):
@@ -61,7 +64,8 @@ class FlyModel(nn.Module):
         lr = self.config.training.optimization.learning_rate
         optimizer_name = self.config.training.optimization.optimizer_name
         max_gradient_norm = self.config.training.optimization.max_gradient_norm
-        betas = self.config.training.optimization.betas if self.config.training.optimization.get("betas") else (0.9, 0.999)
+        betas = self.config.training.optimization.betas if self.config.training.optimization.get("betas") else (0.9,
+                                                                                                                0.999)
 
         if optimizer_name == "AdamW":
             optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=lr, betas=betas)
@@ -71,8 +75,7 @@ class FlyModel(nn.Module):
             optimizer = torch.optim.Adadelta(optimizer_grouped_parameters, lr=lr)
         else:
             raise NotImplementedError(
-                f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!"
-            )
+                f"{optimizer_name} is not implemented! Override FlyModel's configure optimizer to continue!")
 
         scheduler_name = self.config.training.scheduler.scheduler_name
         warmup_steps = self.config.training.scheduler.get("warmup_steps", None)
@@ -92,9 +95,10 @@ class FlyModel(nn.Module):
             if warmup_cycle is None:
                 warmup_cycle = 0.5
 
-            scheduler = WarmupCosineWithHardRestartsSchedule(
-                optimizer, warmup_steps, total_num_update_steps, cycles=warmup_cycle
-            )
+            scheduler = WarmupCosineWithHardRestartsSchedule(optimizer,
+                                                             warmup_steps,
+                                                             total_num_update_steps,
+                                                             cycles=warmup_cycle)
         else:
             logger.error("Write your own version of `configure_scheduler`!")
             raise NotImplementedError
@@ -102,6 +106,39 @@ class FlyModel(nn.Module):
         setattr(self, "get_last_lr", scheduler.get_last_lr)
 
         return [optimizer], [scheduler]
+
+    def traininging_step(self, train_batch, batch_idx):
+        return self.forward(train_batch)
+
+    def validation_step(self, val_batch, batch_idx, dataloader_idx=0):
+        return self.predict_step(val_batch)
+
+    def test_step(self, test_batch, batch_idx, dataloader_idx=0):
+        return self.predict_step(test_batch)
+
+    def validation_loop(self, dataloader):
+        # No gradient is needed for validation
+        self.eval()
+        self.reset_evaluation_metrics()
+        with torch.no_grad():
+            pbar = tqdm.tqdm(dataloader)
+            pbar.mininterval = 2.0
+            for batch_idx, batch in enumerate(pbar):
+                # send to cuda device
+                batch = move_to_device(batch, self.device)
+                self.validation_step(batch, batch_idx)
+
+    def test_loop(self, dataloader):
+        self.eval()
+        self.reset_evaluation_metrics()
+        # No gradient is needed for validation
+        with torch.no_grad():
+            pbar = tqdm.tqdm(dataloader)
+            pbar.mininterval = 2.0
+            for batch_idx, batch in enumerate(pbar):
+                # send to cuda device
+                batch = move_to_device(batch, self.device)
+                self.test_step(batch, batch_idx)
 
     def get_last_lr(self):
         raise NotImplementedError("Please hook this function to the `scheduler.get_last_lr`!")

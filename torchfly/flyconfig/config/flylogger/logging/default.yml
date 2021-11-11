@@ -1,4 +1,4 @@
-flyconfig:
+flylogger:
   # python logging configuration for tasks
   logging:
     version: 1

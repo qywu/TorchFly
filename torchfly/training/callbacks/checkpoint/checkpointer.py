@@ -19,13 +19,14 @@ class Checkpointer:
         storage_dir: Location to store the checkpoints
     """
 
-    def __init__(self,
-                 sync_every_save: bool = True,
-                 async_save=False,
-                 num_checkpoints_to_keep: int = 1000,
-                 keep_checkpoint_every_num_seconds: float = 3600,
-                 storage_dir: str = "Checkpoints",
-                 only_save_model=True):
+    def __init__(
+        self,
+        sync_every_save: bool = True,
+        async_save=False,
+        num_checkpoints_to_keep: int = 1000,
+        keep_checkpoint_every_num_seconds: float = 3600,
+        storage_dir: str = "Checkpoints",
+    ):
         self.sync_every_save = sync_every_save
         self.async_save = async_save
         self.num_checkpoints_to_keep = num_checkpoints_to_keep
@@ -35,7 +36,6 @@ class Checkpointer:
         self._last_checkpoint_time = datetime.datetime.now()
         self.background_tasks = []
         self.initialized = False
-        self.only_save_model = only_save_model
 
     def save_checkpoint(self, stamp: str, model_state_dict: Dict[str, Any], trainer_state_dict: Dict[str, Any]) -> None:
         """
@@ -46,9 +46,6 @@ class Checkpointer:
         if not self.initialized:
             os.makedirs(self.storage_dir, exist_ok=True)
             self.initialized = True
-
-        if self.only_save_model:
-            trainer_state_dict = {}
 
         # synchronize background tasks
         if self.sync_every_save and self.async_save:

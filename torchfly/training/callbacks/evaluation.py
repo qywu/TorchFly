@@ -1,8 +1,10 @@
+from genericpath import exists
 from typing import Any, Dict
 import os
 import sys
 import math
 import time
+import json
 import torch
 import logging
 from omegaconf import DictConfig
@@ -18,38 +20,39 @@ Trainer = Any
 @Callback.register("evaluation")
 class Evaluation(Callback):
     """
-    Callback that handles Checkpointing
+    Callback that handles Evaluation and saves best model weights
     """
+
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
+        self.config = config.evaluation
+        self.enabled = config.evaluation.enabled
         self.last_save_time = time.time()
         self.started = False
+        self.saved_top_k_models = []
+        self.best_model_name = None
 
-    @handle_event(Events.INITIALIZE, priority=199)
+    @handle_event(Events.TRAIN_BEGIN, priority=199)
     def setup_evaluation(self, trainer: Trainer):
         # Checkpoint in seconds or steps
-        if self.config.training.evaluation.steps_interval > 0:
+        if self.config.steps_interval > 0:
             self.evaluation_in_seconds = False
         else:
-            if (
-                not hasattr(self.config.training.evaluation, "seconds_interval")
-            ) or self.config.training.evaluation.seconds_interval < 0:
+            if (not hasattr(self.config, "seconds_interval")) or self.config.seconds_interval < 0:
                 self.evaluation_in_seconds = False
             else:
                 self.evaluation_in_seconds = True
 
         # evaluation steps interval
-        if self.config.training.evaluation.after_num_steps is None:
+        if self.config.after_num_steps is None:
             self.evaluation_after_num_steps = 0
         else:
-            self.evaluation_after_num_steps = self.config.training.evaluation.after_num_steps
+            self.evaluation_after_num_steps = self.config.after_num_steps
 
-        if self.config.training.evaluation.steps_interval < 0 and self.config.training.evaluation.seconds_interval < 0:
+        if self.config.steps_interval < 0 and self.config.seconds_interval < 0:
             self.evaluate_in_epoch = trainer.training_in_epoch
             if self.evaluate_in_epoch == False:
-                raise ValueError(
-                    "Please set either `config.training.evaluation.steps_interval` or `config.training.evaluation.seconds_interval`"
-                )
+                raise ValueError("Please set either `self.config.steps_interval` or `self.config.seconds_interval`")
         else:
             self.evaluate_in_epoch = False
 
@@ -68,11 +71,11 @@ class Evaluation(Callback):
                 if self.evaluation_in_seconds:
                     current_time = time.time()
                     # the elapsed time is longer than the seconds
-                    if (current_time - self.last_save_time) > self.config.training.evaluation.seconds_interval:
+                    if (current_time - self.last_save_time) > self.config.seconds_interval:
                         self._evaluation(trainer)
                         self.last_save_time = current_time
                 else:
-                    if (trainer.global_step_count + 1) % self.config.training.evaluation.steps_interval == 0:
+                    if (trainer.global_step_count + 1) % self.config.steps_interval == 0:
                         self._evaluation(trainer)
 
     @handle_event(Events.EPOCH_END)
@@ -80,12 +83,110 @@ class Evaluation(Callback):
         if self.evaluate_in_epoch:
             self._evaluation(trainer)
 
+    @handle_event(Events.VALIDATE_BEGIN)
+    def info_valid_begin(self, trainer: Trainer):
+        logger.info(f"Validation starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
+        self.eval_start_time = time.time()
+        # save model here
+        os.makedirs("evaluation", exist_ok=True)
+        os.makedirs("evaluation/model_weights", exist_ok=True)
+
+    @handle_event(Events.VALIDATE_END)
+    def record_validation_metrics(self, trainer: Trainer):
+        log_string = f"Validation at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
+        metrics = trainer.model.get_evaluation_metrics()
+        model_score = metrics["score"][1] if isinstance(metrics["score"], tuple) else metrics["score"]
+        metrics_dict = {}
+        # loop over all the metrics
+        for metric_name, value in metrics.items():
+            # if value is tuple, parse it
+            if isinstance(value, tuple):
+                display_value, value = value
+            else:
+                display_value = value
+            log_string += f" | {metric_name} {display_value}"
+            # tensorboard
+            try:
+                value = float(value)
+                self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
+            except:
+                pass
+            metrics_dict[metric_name] = value
+        logger.info(log_string)
+
+        # save the best model
+        is_best = False
+        if trainer.global_step_count > 0:
+            if len(self.saved_top_k_models) > 0:
+                self.saved_top_k_models = sorted(self.saved_top_k_models, key=lambda item: item["score"])
+
+            if len(self.saved_top_k_models) > 0 and model_score > self.saved_top_k_models[-1]["score"]:
+                model_path = os.path.join("evaluation/model_weights", "best.pth")
+                torch.save(self.get_model_weights_stamp(trainer), model_path)
+                is_best = True
+
+            if len(self.saved_top_k_models) < self.config.save_top_k_models:
+                # save the model
+                model_path = "epoch_" + str(trainer.epochs_trained) + "_step_" + str(trainer.global_step_count) + ".pth"
+                model_path = os.path.join("evaluation/model_weights", model_path)
+                torch.save(self.get_model_weights_stamp(trainer), model_path)
+                self.saved_top_k_models.append({"path": model_path, "score": model_score})
+            else:
+                model_path = self.saved_top_k_models.pop(0)["path"]
+                os.remove(model_path)
+
+        with open("evaluation/results.txt", "a") as f:
+            f.write(f"validation @epoch {trainer.epochs_trained} @step {trainer.global_step_count} | ")
+            f.write(json.dumps(metrics_dict))
+            f.write(" | ")
+            if is_best:
+                f.write(" best so far")
+            f.write("\n")
+
+
+    @handle_event(Events.TEST_BEGIN)
+    def info_test_begin(self, trainer: Trainer):
+        logger.info(f"Test starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
+        self.eval_start_time = time.time()
+
+    @handle_event(Events.TEST_END)
+    def record_test_metrics(self, trainer: Trainer):
+        log_string = f"Test at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
+        metrics = trainer.model.get_evaluation_metrics()
+        metrics_dict = {}
+        # loop over all the metrics
+        for metric_name, value in metrics.items():
+            # if value is tuple, parse it
+            if isinstance(value, tuple):
+                display_value, value = value
+            else:
+                display_value = value
+            log_string += f" | {metric_name} {display_value}"
+            # tensorboard
+            try:
+                value = float(value)
+                self.tensorboard.add_scalar("test/" + metric_name, value, global_step=trainer.global_step_count)
+            except:
+                pass
+            metrics_dict[metric_name] = value
+        logger.info(log_string)
+
+        with open("evaluation/results.txt", "a") as f:
+            f.write("test: ")
+            f.write(json.dumps(metrics_dict))
+            f.write("\n")
+
     def _evaluation(self, trainer):
         if trainer.validation_dataloader is not None:
-            trainer.validate()
+            trainer.validate(trainer.validation_dataloader)
 
-        if trainer.test_dataloader is not None:
-            trainer.test()
+    def get_model_weights_stamp(self, trainer: Trainer):
+        item = {
+            "model_weights": trainer.model.state_dict(),
+            "global_step_count": trainer.global_step_count,
+            "epochs_trained": trainer.epochs_trained,
+        }
+        return item
 
     def state_dict(self):
         state_dict = {"started": self.started}

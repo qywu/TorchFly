@@ -1,0 +1,6 @@
+subconfigs:
+    - model: model_base
+    - training: 1gpu.yaml
+task:
+    name: example1
+    path: /home/user

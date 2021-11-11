@@ -1,0 +1,6 @@
+subconfigs:
+    - training: 1gpu
+task:
+    name: example2
+flylogger:
+    ~
