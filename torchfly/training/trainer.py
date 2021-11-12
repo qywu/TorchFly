@@ -60,8 +60,23 @@ class Trainer:
         self.global_step_count = 0
         self.epochs_trained = 0
         self.local_step_count = 0
-        
+
         self.init_distributed_environment()
+
+        # Model is sent to GPU or CPU
+        self.init_device()
+        if reset_optimizers or len(self.optimizers) == 0:
+            self.optimizers, self.schedulers = self.configure_optimizers()
+
+        self.model = move_to_device(self.model, self.device)
+        self.model.device = self.device
+        self.init_fp16()
+
+        if self.distributed_training:
+            self.init_distributed_model(self.model)
+
+        # make sure the model has access to trainer info
+        self.model.set_trainer(self)
 
         self.callback_handler = CallbackHandler(config,
                                                 trainer=self,
@@ -186,21 +201,6 @@ class Trainer:
         self.test_dataloader = test_dataloader
 
         self.init_training_constants()
-
-        # Model is sent to GPU or CPU
-        self.init_device()
-        if reset_optimizers or len(self.optimizers) == 0:
-            self.optimizers, self.schedulers = self.configure_optimizers()
-
-        self.model = move_to_device(self.model, self.device)
-        self.model.device = self.device
-        self.init_fp16()
-
-        if self.distributed_training:
-            self.init_distributed_model(self.model)
-
-        # make sure the model has access to trainer info
-        self.model.set_trainer(self)
 
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
