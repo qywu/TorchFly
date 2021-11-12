@@ -52,15 +52,15 @@ class Trainer:
         self.callback_handler = None
         self.optimizers = []
         self.schedulers = []
-        self.total_num_update_steps = 0
-        self.total_num_batches = 0
-        self.total_num_epochs = 0
-        self.epoch_num_batches = 0
+        self.total_num_update_steps = None
+        self.total_num_batches = None
+        self.total_num_epochs = None
+        self.epoch_num_batches = None
         self.global_batch_count = 0
         self.global_step_count = 0
         self.epochs_trained = 0
         self.local_step_count = 0
-
+        
         self.init_distributed_environment()
 
         self.callback_handler = CallbackHandler(config,
