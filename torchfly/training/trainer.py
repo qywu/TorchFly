@@ -65,8 +65,7 @@ class Trainer:
 
         # Model is sent to GPU or CPU
         self.init_device()
-        if reset_optimizers or len(self.optimizers) == 0:
-            self.optimizers, self.schedulers = self.configure_optimizers()
+        self.optimizers, self.schedulers = self.configure_optimizers()
 
         self.model = move_to_device(self.model, self.device)
         self.model.device = self.device
@@ -201,6 +200,9 @@ class Trainer:
         self.test_dataloader = test_dataloader
 
         self.init_training_constants()
+
+        if reset_optimizers or len(self.optimizers) == 0:
+            self.optimizers, self.schedulers = self.configure_optimizers()
 
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
