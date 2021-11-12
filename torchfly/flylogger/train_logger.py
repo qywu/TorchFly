@@ -73,7 +73,7 @@ class TrainLogger(Callback):
         # correctly handles exception
         atexit.register(self.__del__)
 
-    @handle_event(Events.INITIALIZE, priority=100)
+    @handle_event(Events.TRAIN_BEGIN, priority=100)
     def report_training_config(self, trainer: Trainer):
         logger.info(OmegaConf.to_yaml(self.config))
 
