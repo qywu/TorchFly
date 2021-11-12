@@ -56,10 +56,10 @@ class Trainer:
         self.total_num_batches = None
         self.total_num_epochs = None
         self.epoch_num_batches = None
-        self.global_batch_count = 0
-        self.global_step_count = 0
-        self.epochs_trained = 0
-        self.local_step_count = 0
+        self.global_batch_count = None
+        self.global_step_count = None
+        self.epochs_trained = None
+        self.local_step_count = None
 
         self.init_distributed_environment()
 
