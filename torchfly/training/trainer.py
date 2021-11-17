@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class Trainer:
-
     def __init__(self, config: DictConfig, model: FlyModel, *args, **kwargs):
         """
         Args:
@@ -77,10 +76,9 @@ class Trainer:
         # make sure the model has access to trainer info
         self.model.set_trainer(self)
 
-        self.callback_handler = CallbackHandler(config,
-                                                trainer=self,
-                                                callbacks=[],
-                                                verbose=config.logging.level == "DEBUG")
+        self.callback_handler = CallbackHandler(
+            config, trainer=self, callbacks=[], verbose=config.logging.level == "DEBUG"
+        )
 
         # Configure all callbacks
         self.configure_callbacks()
@@ -128,7 +126,8 @@ class Trainer:
             raise NotImplementedError("config.total_num.updated_steps must be larger than 0")
         elif self.total_num_update_steps > 0 and self.total_num_epochs > 0:
             raise NotImplementedError(
-                "Please only set either config.total_num.updated_steps or config.total_num.epochs greater than 0")
+                "Please only set either config.total_num.updated_steps or config.total_num.epochs greater than 0"
+            )
         elif self.total_num_update_steps > 0 and self.total_num_epochs < 0:
             self.training_in_epoch = False
         elif self.total_num_update_steps < 0 and self.total_num_epochs > 0:
@@ -184,13 +183,15 @@ class Trainer:
         # for param in self.model.parameters():
         #     dist.broadcast(param.data, 0)
 
-    def train(self,
-              train_dataloader,
-              validation_dataloader=None,
-              test_dataloader=None,
-              reset_optimizers=True,
-              *args,
-              **kwargs):
+    def train(
+        self,
+        train_dataloader,
+        validation_dataloader=None,
+        test_dataloader=None,
+        reset_optimizers=True,
+        *args,
+        **kwargs
+    ):
         self.global_batch_count = 0
         self.global_step_count = 0
         self.epochs_trained = 0
@@ -224,6 +225,7 @@ class Trainer:
 
         # Training ends
         self.callback_handler.fire_event(Events.TRAIN_END)
+
 
     def train_epoch(self):
         self.optimizer = self.optimizers[0]
@@ -312,12 +314,14 @@ class Trainer:
 
     def validate(self, dataloader):
         # Start Validation
+        self.model.reset_evaluation_metrics()
         self.callback_handler.fire_event(Events.VALIDATE_BEGIN)
         self.model.validation_loop(dataloader)
         self.callback_handler.fire_event(Events.VALIDATE_END)
 
     def test(self, dataloader):
         # Start Testing
+        self.model.reset_evaluation_metrics()
         self.callback_handler.fire_event(Events.TEST_BEGIN)
         self.model.test_loop(dataloader)
         self.callback_handler.fire_event(Events.TEST_END)

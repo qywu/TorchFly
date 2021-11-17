@@ -99,6 +99,7 @@ class TrainLogger(Callback):
         log_dir = os.path.join(os.getcwd(), "tensorboard")
         os.makedirs(log_dir, exist_ok=True)
         self.tensorboard = SummaryWriter(log_dir=log_dir, purge_step=trainer.global_step_count)
+        trainer.tensorboard = self.tensorboard
 
         if self.training_in_epoch:
             logger.info(f"Total num of epochs of for training: {trainer.total_num_epochs}")
@@ -135,8 +136,6 @@ class TrainLogger(Callback):
 
     @handle_event(Events.TRAIN_END)
     def on_train_end(self, trainer: Trainer):
-        #logging.shutdown()
-        # self.tensorboard.close()
         logger.info("Training Finishes!")
 
     def log(self, trainer: Trainer):

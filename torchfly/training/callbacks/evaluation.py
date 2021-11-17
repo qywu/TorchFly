@@ -6,6 +6,7 @@ import math
 import time
 import json
 import torch
+from torch.utils.tensorboard import SummaryWriter
 import logging
 from omegaconf import DictConfig
 
@@ -22,7 +23,6 @@ class Evaluation(Callback):
     """
     Callback that handles Evaluation and saves best model weights
     """
-
     def __init__(self, config: DictConfig) -> None:
         super().__init__(config)
         self.config = config.evaluation
@@ -32,7 +32,7 @@ class Evaluation(Callback):
         self.saved_top_k_models = []
         self.best_model_name = None
 
-    @handle_event(Events.TRAIN_BEGIN, priority=199)
+    @handle_event(Events.TRAIN_BEGIN, priority=110)
     def setup_evaluation(self, trainer: Trainer):
         # Checkpoint in seconds or steps
         if self.config.steps_interval > 0:
@@ -42,6 +42,8 @@ class Evaluation(Callback):
                 self.evaluation_in_seconds = False
             else:
                 self.evaluation_in_seconds = True
+
+        self.tensorboard = trainer.tensorboard
 
         # evaluation steps interval
         if self.config.after_num_steps is None:
@@ -62,6 +64,21 @@ class Evaluation(Callback):
         if not self.started:
             self._evaluation(trainer)
             self.started = True
+
+    @handle_event(Events.TRAIN_END)
+    def test_on_train_end(self, trainer):
+        # Start validation at the begining
+        if trainer.test_dataloader is not None:
+            try:
+                state_dict = torch.load("evaluation/model_weights/best.pth")
+                trainer.model.load_state_dict(state_dict["model_weights"])
+                logger.info(
+                    f"Loading the `best.pth` epoch {state_dict['epochs_trained']} step {state_dict['global_step_count']} with score {state_dict['score']}!"
+                )
+            except:
+                logger.warn("Cannot load `best.pth`!")
+
+            trainer.test(trainer.test_dataloader)
 
     @handle_event(Events.STEP_END)
     def on_batch_end(self, trainer: Trainer):
@@ -110,7 +127,7 @@ class Evaluation(Callback):
                 value = float(value)
                 self.tensorboard.add_scalar("validate/" + metric_name, value, global_step=trainer.global_step_count)
             except:
-                pass
+                logger.warn("tensorboard is not functioning!")
             metrics_dict[metric_name] = value
         logger.info(log_string)
 
@@ -122,14 +139,14 @@ class Evaluation(Callback):
 
             if len(self.saved_top_k_models) > 0 and model_score > self.saved_top_k_models[-1]["score"]:
                 model_path = os.path.join("evaluation/model_weights", "best.pth")
-                torch.save(self.get_model_weights_stamp(trainer), model_path)
+                torch.save(self.get_model_weights_stamp(trainer, model_score), model_path)
                 is_best = True
 
             if len(self.saved_top_k_models) < self.config.save_top_k_models:
                 # save the model
                 model_path = "epoch_" + str(trainer.epochs_trained) + "_step_" + str(trainer.global_step_count) + ".pth"
                 model_path = os.path.join("evaluation/model_weights", model_path)
-                torch.save(self.get_model_weights_stamp(trainer), model_path)
+                torch.save(self.get_model_weights_stamp(trainer, model_score), model_path)
                 self.saved_top_k_models.append({"path": model_path, "score": model_score})
             else:
                 model_path = self.saved_top_k_models.pop(0)["path"]
@@ -143,15 +160,14 @@ class Evaluation(Callback):
                 f.write(" best so far")
             f.write("\n")
 
-
     @handle_event(Events.TEST_BEGIN)
     def info_test_begin(self, trainer: Trainer):
-        logger.info(f"Test starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
+        logger.info(f"Test starts! ")
         self.eval_start_time = time.time()
 
     @handle_event(Events.TEST_END)
     def record_test_metrics(self, trainer: Trainer):
-        log_string = f"Test at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count} | duration {time.time() - self.eval_start_time:3.2f}s"
+        log_string = f"Test"
         metrics = trainer.model.get_evaluation_metrics()
         metrics_dict = {}
         # loop over all the metrics
@@ -167,7 +183,7 @@ class Evaluation(Callback):
                 value = float(value)
                 self.tensorboard.add_scalar("test/" + metric_name, value, global_step=trainer.global_step_count)
             except:
-                pass
+                logger.warn("tensorboard is not functioning!")
             metrics_dict[metric_name] = value
         logger.info(log_string)
 
@@ -180,11 +196,12 @@ class Evaluation(Callback):
         if trainer.validation_dataloader is not None:
             trainer.validate(trainer.validation_dataloader)
 
-    def get_model_weights_stamp(self, trainer: Trainer):
+    def get_model_weights_stamp(self, trainer: Trainer, score: float):
         item = {
             "model_weights": trainer.model.state_dict(),
             "global_step_count": trainer.global_step_count,
             "epochs_trained": trainer.epochs_trained,
+            "score": score
         }
         return item
 
