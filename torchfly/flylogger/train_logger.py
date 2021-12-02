@@ -93,10 +93,10 @@ class TrainLogger(Callback):
 
         self.last_log_global_step = 0
 
-    @handle_event(Events.TRAIN_BEGIN, priority=140)
+    @handle_event(Events.TRAIN_BEGIN, priority=199)
     def setup_tensorboard(self, trainer: Trainer):
         # Setup tensorboard
-        log_dir = os.path.join(os.getcwd(), "tensorboard")
+        log_dir = os.path.join(os.getcwd(), f"{trainer.name}_tensorboard")
         os.makedirs(log_dir, exist_ok=True)
         self.tensorboard = SummaryWriter(log_dir=log_dir, purge_step=trainer.global_step_count)
         trainer.tensorboard = self.tensorboard
