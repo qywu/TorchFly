@@ -8,5 +8,5 @@ training:
     evaluation:
         save_top_k_models: 3
     total_num:
-        epochs: 20
+        epochs: 5
         update_steps: -1 # disabled when total_num.epochs < 0

@@ -6,7 +6,9 @@ from torchvision import datasets, transforms
 from torchfly.flylogger import FlyLogger
 from torchfly.flyconfig import FlyConfig
 from torchfly.training import Trainer
-from torchfly.utils import distributed
+import torchfly.distributed as distributed
+from torchfly.utilities import set_random_seed
+from omegaconf import OmegaConf
 
 from model import CNNFlyModel
 
@@ -23,6 +25,7 @@ class DataLoaderHelper:
         }
 
         with distributed.mutex() as rank:
+
             dataset = datasets.MNIST(os.path.join(self.config.task.datadir, 'MNIST'),
                                      train=True,
                                      download=True,
@@ -57,6 +60,8 @@ def main():
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
     config = FlyConfig.load("config/config.yaml")
+    set_random_seed(config.training.random_seed)
+
     data_helper = DataLoaderHelper(config)
     train_dataloader = data_helper.train_loader_fn()
     valid_dataloader = data_helper.valid_loader_fn()
@@ -65,8 +70,13 @@ def main():
 
     trainer = Trainer(config.training, model)
 
-    with FlyLogger(config.flylogger, overwrite=True) as flylogger:
+    model.configure_metrics()
+
+    with FlyLogger(config.flylogger) as flylogger:
+        with open("config.yaml", "w") as f:
+            OmegaConf.save(config, f)    
         trainer.train(train_dataloader, valid_dataloader)
+
 
 
 if __name__ == "__main__":

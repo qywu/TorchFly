@@ -165,6 +165,7 @@ class Evaluation(Callback):
     @handle_event(Events.TEST_BEGIN)
     def info_test_begin(self, trainer: Trainer):
         logger.info(f"Test starts! ")
+        os.makedirs("evaluation", exist_ok=True)
         self.eval_start_time = time.time()
 
     @handle_event(Events.TEST_END)

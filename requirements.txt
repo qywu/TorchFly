@@ -8,5 +8,5 @@ regex
 overrides
 omegaconf>=2.1
 pyarrow
-colorlog
+colorlog==5.0.1
 hydra-core
