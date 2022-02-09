@@ -5,6 +5,7 @@ import torch
 from torch.cuda.amp import GradScaler, autocast
 from omegaconf import DictConfig, OmegaConf
 import socket
+
 # import apex
 # from apex import amp
 # from apex.parallel import DistributedDataParallel, Reducer
@@ -26,9 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 class Trainer:
-
-    def __init__(self, config: DictConfig, model: FlyModel, name: str = "task1", *args, **kwargs):
+    def __init__(
+        self,
+        config: DictConfig,
+        model: FlyModel,
+        name: str = "Trainer1",
+        *args,
+        **kwargs,
+    ):
         """
+        One trainer has one model
         Args:
             config: FlyConfig dictionary
             model: must be FlyModel
@@ -39,7 +47,7 @@ class Trainer:
             logger.warn("model is not defined as FlyModel")
         self.config = config
         self.model = model
-        self.name = name
+        self.trainer_name = name
 
         # class properties
         self.rank = None
@@ -48,35 +56,22 @@ class Trainer:
         self.world_size = None
         self.distributed_training = None
         self.device = None
-        self.fp16 = config.fp16
-        self.gradient_accumulation_batches = config.gradient_accumulation_batches
+        self.gradient_accumulation_batches = None
         self.callback_handler = None
         self.optimizers = []
         self.schedulers = []
 
         self.init_distributed_environment()
 
-        # Model is sent to GPU or CPU
-        self.init_device()
-        # self.optimizers, self.schedulers = self.configure_optimizers()
-
-        self.model = move_to_device(self.model, self.device)
-        self.model.device = self.device
-        self.init_fp16()
-
-        if self.distributed_training:
-            self.init_distributed_model(self.model)
-
         # make sure the model has access to trainer info
         self.model.set_trainer(self)
 
-        self.callback_handler = CallbackHandler(config,
-                                                trainer=self,
-                                                callbacks=[],
-                                                verbose=config.logging.level == "DEBUG")
+        self.callback_handler = CallbackHandler(
+            config, trainer=self, callbacks=[], verbose=config.logging.level == "DEBUG"
+        )
 
         # Configure all callbacks
-        self.configure_callbacks()
+        self.configure_callbacks(config)
         self.callback_handler.fire_event(Events.INITIALIZE)
 
     def init_distributed_environment(self):
@@ -84,12 +79,12 @@ class Trainer:
         self.rank = int(os.environ.get("RANK", 0))
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
         self.world_size = int(os.environ.get("WORLD_SIZE", 1))
-        self.distributed_training = (self.world_size > 1)
+        self.distributed_training = self.world_size > 1
 
         # TODO: add error message when num_gpus is set, but distributed training is False here
 
         if self.distributed_training and not torch.distributed.is_initialized():
-            torch.distributed.init_process_group(backend='nccl', init_method='env://')
+            torch.distributed.init_process_group(backend="nccl", init_method="env://")
             assert torch.distributed.is_initialized()
 
         if self.distributed_training and not torch.distributed.is_initialized():
@@ -98,30 +93,37 @@ class Trainer:
                 f"Initialized Rank:{torch.distributed.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
             )
 
-    def init_device(self):
+    def init_device(self, config):
         # set cuda device
-        if self.config.num_gpus_per_node > 0:
+        if config.num_gpus_per_node > 0:
             torch.cuda.set_device(self.local_rank)
             self.device = torch.device("cuda", self.local_rank)
         else:
             self.device = torch.device("cpu")
 
-    def init_fp16(self):
-        if self.config.num_gpus_per_node == 0:
-            raise NotImplementedError("For mixed precision training, you need to use GPU!")
+    def init_fp16(self, config):
+        if config.num_gpus_per_node == 0:
+            raise NotImplementedError(
+                "For mixed precision training, you need to use GPU!"
+            )
         self.loss_scaler = GradScaler()
 
-    def init_training_constants(self):
-        self.total_num_update_steps = int(self.config.total_num.update_steps)
-        self.total_num_batches = self.total_num_update_steps * int(self.gradient_accumulation_batches)
-        self.total_num_epochs = int(self.config.total_num.epochs)
+    def init_training_constants(self, config):
+        self.total_num_update_steps = int(config.total_num.update_steps)
+        self.total_num_batches = self.total_num_update_steps * int(
+            self.gradient_accumulation_batches
+        )
+        self.total_num_epochs = int(config.total_num.epochs)
 
         # check if training in epoch or update_steps
         if self.total_num_update_steps < 0 and self.total_num_epochs < 0:
-            raise NotImplementedError("config.total_num.updated_steps must be larger than 0")
+            raise NotImplementedError(
+                "config.total_num.updated_steps must be larger than 0"
+            )
         elif self.total_num_update_steps > 0 and self.total_num_epochs > 0:
             raise NotImplementedError(
-                "Please only set either config.total_num.updated_steps or config.total_num.epochs greater than 0")
+                "Please only set either config.total_num.updated_steps or config.total_num.epochs greater than 0"
+            )
         elif self.total_num_update_steps > 0 and self.total_num_epochs < 0:
             self.training_in_epoch = False
         elif self.total_num_update_steps < 0 and self.total_num_epochs > 0:
@@ -137,41 +139,49 @@ class Trainer:
         if self.training_in_epoch:
             if self.epoch_num_batches is not None:
                 self.total_num_batches = self.epoch_num_batches * self.total_num_epochs
-                self.total_num_update_steps = self.total_num_batches // self.gradient_accumulation_batches
-                self.epoch_num_update_steps = self.epoch_num_batches // self.gradient_accumulation_batches
+                self.total_num_update_steps = (
+                    self.total_num_batches // self.gradient_accumulation_batches
+                )
+                self.epoch_num_update_steps = (
+                    self.epoch_num_batches // self.gradient_accumulation_batches
+                )
             else:
                 # this is set to wait until the epoch finishes first
                 self.total_num_update_steps = sys.maxsize
 
-    def configure_optimizers(self, total_num_update_steps=None, optimizers=None, schedulers=None):
+    def configure_optimizers(
+        self, config, total_num_update_steps=None, optimizers=None, schedulers=None
+    ):
         if optimizers is not None and schedulers is not None:
             self.optimizers, self.schedulers = optimizers, schedulers
         elif total_num_update_steps is not None:
-            self.optimizers, self.schedulers = self.model.configure_optimizers(total_num_update_steps)
+            self.optimizers, self.schedulers = self.model.configure_optimizers(
+                config, total_num_update_steps
+            )
         else:
             raise ValueError("Please provide the correct argument!")
         return self.optimizers, self.schedulers
 
-    def configure_callbacks(self):
+    def configure_callbacks(self, config):
         # Resume callback runs for all ranks
-        if self.config.resume.enabled:
-            self.resume_callback = Resume(self.config)
+        if config.resume.enabled:
+            self.resume_callback = Resume(config)
             self.add_callback(self.resume_callback)
 
-        self.log_callback = TrainLogger(self.config)
+        self.log_callback = TrainLogger(config)
         self.add_callback(self.log_callback)
 
-        self.eval_callback = Evaluation(self.config)
+        self.eval_callback = Evaluation(config)
         self.add_callback(self.eval_callback)
 
         # For logging and inference, use rank 0 by default
         if self.rank == 0:
-            if self.config.console:
-                self.console_callback = Console(self.config)
+            if config.console:
+                self.console_callback = Console(config)
                 self.add_callback(self.console_callback)
 
-            if self.config.checkpointing.enabled:
-                self.checkpoint_callback = Checkpoint(self.config)
+            if config.checkpointing.enabled:
+                self.checkpoint_callback = Checkpoint(config)
                 self.add_callback(self.checkpoint_callback)
 
     def init_distributed_model(self, model):
@@ -183,14 +193,34 @@ class Trainer:
         # for param in self.model.parameters():
         #     dist.broadcast(param.data, 0)
 
-    def train(self,
-              train_dataloader,
-              validation_dataloader=None,
-              test_dataloader=None,
-              configure_optimizers=True,
-              name=None,
-              *args,
-              **kwargs):
+    def train(
+        self,
+        config,
+        train_dataloader,
+        validation_dataloader=None,
+        test_dataloader=None,
+        configure_optimizers=True,
+        stage_name: str = "Stage1",
+        *args,
+        **kwargs,
+    ):
+        self.config = config
+        self.stage_name = stage_name
+
+        # Model is sent to GPU or CPU
+        self.init_device(config)
+        # self.optimizers, self.schedulers = self.configure_optimizers()
+
+        self.gradient_accumulation_batches = config.gradient_accumulation_batches
+        self.max_gradient_norm = config.optimization.max_gradient_norm
+        self.fp16 = config.fp16
+        self.model = move_to_device(self.model, self.device)
+        self.model.device = self.device
+        self.init_fp16(config)
+
+        if self.distributed_training:
+            self.init_distributed_model(self.model)
+
         self.total_num_update_steps = 0
         self.total_num_batches = 0
         self.total_num_epochs = 0
@@ -204,13 +234,11 @@ class Trainer:
         self.validation_dataloader = validation_dataloader
         self.test_dataloader = test_dataloader
 
-        self.init_training_constants()
+        self.init_training_constants(config)
+
 
         if configure_optimizers or len(self.optimizers) == 0:
-            self.configure_optimizers(self.total_num_update_steps)
-
-        if name is not None:
-            self.name = name
+            self.configure_optimizers(config, self.total_num_update_steps)
 
         # Training begins
         self.callback_handler.fire_event(Events.TRAIN_BEGIN)
@@ -288,7 +316,7 @@ class Trainer:
         if self.distributed_training:
             self.reducer.reduce()
 
-        gradient_clip = self.config.optimization.max_gradient_norm
+        gradient_clip = self.max_gradient_norm
         # Gradient Clipping
         if gradient_clip > 0:
             if self.fp16:
@@ -339,53 +367,67 @@ class Trainer:
         return self.model.state_dict()
 
     def set_trainer_state(self, trainer_state_dict):
+        self.trainer_name = trainer_state_dict["trainer_name"]
+        self.trainer_stage = trainer_state_dict["trainer_stage"]
         self.epochs_trained = trainer_state_dict["epochs_trained"]
         self.global_step_count = trainer_state_dict["global_step_count"]
         self.local_step_count = trainer_state_dict["local_step_count"]
 
+        # All Callbacks
+        for callback in self.callback_handler.callbacks:
+            try:
+                callback.load_state_dict(trainer_state_dict[str(type(callback))])
+            except:
+                logger.error(
+                    f"{type(callback)} seems not to exist in the checkpoint state!"
+                )
+
         # Resume the training state
-        if self.config.resume.resume:
-            # Scheduler States
-            if self.config.resume.resume_scheduler:
-                for idx, scheduler in enumerate(self.schedulers):
-                    try:
-                        scheduler.load_state_dict(trainer_state_dict["schedulers_state_dict"][idx])
-                    except:
-                        if self.rank == 0:
-                            logger.warning(f"Cannot Load Scheduler {idx}'s State!")
+        # Scheduler States
+        for idx, scheduler in enumerate(self.schedulers):
+            try:
+                scheduler.load_state_dict(
+                    trainer_state_dict["schedulers_state_dict"][idx]
+                )
+            except:
+                if self.rank == 0:
+                    logger.warning(f"Cannot Load Scheduler {idx}'s State!")
 
-            if self.config.resume.resume_optimizer:
-                for idx, optimizer in enumerate(self.optimizers):
-                    try:
-                        optimizer.load_state_dict(trainer_state_dict["optimizers_state_dict"][idx])
-                    except:
-                        if self.rank == 0:
-                            logger.warning(f"Cannot Load Optimizer {idx}'s State!")
+        for idx, optimizer in enumerate(self.optimizers):
+            try:
+                optimizer.load_state_dict(
+                    trainer_state_dict["optimizers_state_dict"][idx]
+                )
+            except:
+                if self.rank == 0:
+                    logger.warning(f"Cannot Load Optimizer {idx}'s State!")
 
-            # save amp states
+        # save amp states
+        try:
             if self.fp16:
                 self.loss_scaler.load_state_dict(trainer_state_dict["amp_state_dict"])
+        except:
+            logger.warning(f"Cannot Load Loss Scaler State!")
 
-            # Random States
-            if self.config.resume.resume_rng_state:
-                torch.set_rng_state(trainer_state_dict["cpu_rng_state"])
-                trainer_state_dict["cuda_rng_state"] = trainer_state_dict["cuda_rng_state"][:torch.cuda.device_count()]
-                torch.cuda.set_rng_state_all(trainer_state_dict["cuda_rng_state"])
-
-            # All Callbacks
-            for callback in self.callback_handler.callbacks:
-                try:
-                    callback.load_state_dict(trainer_state_dict[str(type(callback))])
-                except:
-                    logger.error(f"{type(callback)} seems not to exist in the checkpoint state!")
+        # Random States
+        torch.set_rng_state(trainer_state_dict["cpu_rng_state"])
+        torch.cuda.set_rng_state_all(
+            trainer_state_dict["cuda_rng_state"][: torch.cuda.device_count()]
+        )
 
     def get_trainer_state(self):
         trainer_state_dict = {
+            "trainer_name": self.trainer_name,
+            "stage_name": self.stage_name,
             "epochs_trained": self.epochs_trained,
             "global_step_count": self.global_step_count,
             "local_step_count": self.local_step_count,
-            "optimizers_state_dict": [optimizer.state_dict() for optimizer in self.optimizers],
-            "schedulers_state_dict": [scheduler.state_dict() for scheduler in self.schedulers],
+            "optimizers_state_dict": [
+                optimizer.state_dict() for optimizer in self.optimizers
+            ],
+            "schedulers_state_dict": [
+                scheduler.state_dict() for scheduler in self.schedulers
+            ],
             "cpu_rng_state": torch.get_rng_state(),
             "cuda_rng_state": torch.cuda.get_rng_state_all(),
         }

@@ -15,7 +15,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/qywu/TorchFly",
-    packages=find_packages(),
+    packages=['torchfly'],
     install_requires=required_packages,
     classifiers=[
         'Programming Language :: Python :: 3',

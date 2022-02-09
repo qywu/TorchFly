@@ -1,5 +1,5 @@
 #
-# This file contains the default configuration for TrainerLoop
+# This file contains the default configuration for Trainer
 #
 training:
     random_seed: 123

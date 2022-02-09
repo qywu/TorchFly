@@ -72,7 +72,7 @@ class Evaluation(Callback):
         # Start validation at the begining
         if trainer.test_dataloader is not None and self.enabled:
             try:
-                state_dict = torch.load(f"evaluation/{trainer.name}_model_weights/best.pth")
+                state_dict = torch.load(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/model_weights/best.pth")
                 trainer.model.load_state_dict(state_dict["model_weights"])
                 logger.info(
                     f"Loading the `best.pth` epoch {state_dict['epochs_trained']} step {state_dict['global_step_count']} with score {state_dict['score']}!"
@@ -107,8 +107,7 @@ class Evaluation(Callback):
         logger.info(f"Validation starts at epoch {trainer.epochs_trained + 1} steps {trainer.global_step_count}")
         self.eval_start_time = time.time()
         # save model here
-        os.makedirs("evaluation", exist_ok=True)
-        os.makedirs(f"evaluation/{trainer.name}_model_weights", exist_ok=True)
+        os.makedirs(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/model_weights", exist_ok=True)
 
     @handle_event(Events.VALIDATE_END)
     def record_validation_metrics(self, trainer: Trainer):
@@ -140,22 +139,22 @@ class Evaluation(Callback):
                 self.saved_top_k_models = sorted(self.saved_top_k_models, key=lambda item: item["score"])
 
             if len(self.saved_top_k_models) > 0 and model_score > self.saved_top_k_models[-1]["score"]:
-                model_path = os.path.join(f"evaluation/{trainer.name}_model_weights", f"best.pth")
+                model_path = os.path.join(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/model_weights", f"best.pth")
                 torch.save(self.get_model_weights_stamp(trainer, model_score), model_path)
                 is_best = True
 
             if len(self.saved_top_k_models) < self.config.save_top_k_models:
                 # save the model
                 model_path = "epoch_" + str(trainer.epochs_trained) + "_step_" + str(trainer.global_step_count) + ".pth"
-                model_path = os.path.join(f"evaluation/{trainer.name}_model_weights", model_path)
+                model_path = os.path.join(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/model_weights", model_path)
                 torch.save(self.get_model_weights_stamp(trainer, model_score), model_path)
                 self.saved_top_k_models.append({"path": model_path, "score": model_score})
             else:
                 model_path = self.saved_top_k_models.pop(0)["path"]
                 os.remove(model_path)
 
-        with open("evaluation/results.txt", "a") as f:
-            f.write(f"{trainer.name} validation @epoch {trainer.epochs_trained} @step {trainer.global_step_count} | ")
+        with open(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/results.txt", "a") as f:
+            f.write(f"validation @epoch {trainer.epochs_trained} @step {trainer.global_step_count} | ")
             f.write(json.dumps(metrics_dict))
             f.write(" | ")
             if is_best:
@@ -190,8 +189,8 @@ class Evaluation(Callback):
             metrics_dict[metric_name] = value
         logger.info(log_string)
 
-        with open("evaluation/results.txt", "a") as f:
-            f.write(f"{trainer.name} test: ")
+        with open(f"{trainer.trainer_name}_{trainer.stage_name}/evaluation/results.txt", "a") as f:
+            f.write(f"test: ")
             f.write(json.dumps(metrics_dict))
             f.write("\n")
 

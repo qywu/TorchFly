@@ -96,7 +96,7 @@ class TrainLogger(Callback):
     @handle_event(Events.TRAIN_BEGIN, priority=199)
     def setup_tensorboard(self, trainer: Trainer):
         # Setup tensorboard
-        log_dir = os.path.join(os.getcwd(), f"{trainer.name}_tensorboard")
+        log_dir = os.path.join(os.getcwd(), f"{trainer.trainer_name}_{trainer.stage_name}/tensorboard")
         os.makedirs(log_dir, exist_ok=True)
         self.tensorboard = SummaryWriter(log_dir=log_dir, purge_step=trainer.global_step_count)
         trainer.tensorboard = self.tensorboard

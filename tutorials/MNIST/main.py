@@ -67,15 +67,14 @@ def main():
     valid_dataloader = data_helper.valid_loader_fn()
 
     model = CNNFlyModel(config)
+    model.configure_metrics()
 
     trainer = Trainer(config.training, model)
-
-    model.configure_metrics()
 
     with FlyLogger(config.flylogger) as flylogger:
         with open("config.yaml", "w") as f:
             OmegaConf.save(config, f)    
-        trainer.train(train_dataloader, valid_dataloader)
+        trainer.train(config.training, train_dataloader, valid_dataloader)
 
 
 
