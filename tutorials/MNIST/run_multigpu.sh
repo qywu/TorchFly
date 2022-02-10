@@ -1,0 +1,1 @@
+python -m torch.distributed.launch --nproc_per_node=2 main.py --config config/config.yaml training=base_2gpuu

@@ -1,6 +1,6 @@
 subconfigs:
     - model: base
-    - training: base
+    - training: base_1gpu
 flylogger:
     run:
         # Specify the working directory
