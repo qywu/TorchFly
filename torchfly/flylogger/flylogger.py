@@ -1,3 +1,4 @@
+import dis
 from typing import Any, Dict, List
 import os
 import sys
@@ -10,6 +11,7 @@ from omegaconf import OmegaConf, DictConfig
 import argparse
 import re
 import torch
+import torch.distributed
 
 import torchfly.distributed as distributed
 
@@ -31,15 +33,16 @@ class FlyLogger:
     FlyLogger sets up the logger and output directory. It is a Singleton class that should be initialized once.
 
     """
-
-    def __init__(self,
-                 config: OmegaConf = None,
-                 filename: str = "main.log",
-                 logdir: str = None,
-                 logging: bool = True,
-                 chdir: bool = True,
-                 overwrite: bool = False,
-                 resume: bool = False):
+    def __init__(
+        self,
+        config: OmegaConf = None,
+        filename: str = "main.log",
+        logdir: str = None,
+        logging: bool = True,
+        chdir: bool = True,
+        overwrite: bool = False,
+        resume: bool = False
+    ):
         """
         Initialize FlyLogger
 
@@ -91,36 +94,46 @@ class FlyLogger:
         if os.path.exists(cwd) and os.path.samefile(owd, cwd):
             raise ValueError("Please sepcify a sub-directory for `flylogger.run.dir`")
 
-        if not os.path.exists(cwd):
-            # if cwd does not exist, directly create it
-            if self.rank == 0:
-                os.makedirs(cwd)
-                self.save_config(os.path.join(cwd, save_config_dir))
-        elif self.overwrite:
-            # remove cwd and create a new one
-            if self.rank == 0:
-                logger.warning("Overwriting the current working directory!")
-                shutil.rmtree(cwd)
-                os.makedirs(cwd)
-                self.save_config(os.path.join(cwd, save_config_dir))
-        elif self.resume:
-            # if resume, then do nothing
-            pass
-        else:
-            # determine the current working directory name
-            count = 1
-            copy_dir = os.path.abspath(cwd)
-            copy_dir = copy_dir + "_copy_"
-            while os.path.exists(copy_dir + str(count)):
-                count += 1
-            copy_dir = copy_dir + str(count)
-            # change the working directory to the new one
-            cwd = copy_dir
-            self.config.runtime.cwd = cwd
+        if distributed.get_rank() == 0:
+            if not os.path.exists(cwd):
+                # if cwd does not exist, directly create it
+                if self.rank == 0:
+                    os.makedirs(cwd)
+                    self.save_config(os.path.join(cwd, save_config_dir))
+            elif self.overwrite:
+                # remove cwd and create a new one
+                if self.rank == 0:
+                    logger.warning("Overwriting the current working directory!")
+                    shutil.rmtree(cwd)
+                    os.makedirs(cwd)
+                    self.save_config(os.path.join(cwd, save_config_dir))
+            elif self.resume:
+                # if resume, then do nothing
+                pass
+            else:
+                # determine the current working directory name
+                count = 1
+                copy_dir = os.path.abspath(cwd)
+                copy_dir = copy_dir + "_copy_"
+                while os.path.exists(copy_dir + str(count)):
+                    count += 1
+                copy_dir = copy_dir + str(count)
+                # change the working directory to the new one
+                cwd = copy_dir
+                self.config.runtime.cwd = cwd
 
-            if self.rank == 0:
-                os.makedirs(copy_dir)
-                self.save_config(os.path.join(cwd, save_config_dir))
+                if self.rank == 0:
+                    os.makedirs(copy_dir)
+                    self.save_config(os.path.join(cwd, save_config_dir))
+
+        if distributed.get_world_size() > 1:
+            if distributed.get_rank() == 0:
+                objs = [self.config.runtime.cwd]
+            else:
+                objs = [None]
+            # sync runtime current working directory
+            torch.distributed.broadcast_object_list(objs, src=0)
+            self.config.runtime.cwd = objs[0]
 
         distributed.barrier()
 
@@ -139,8 +152,9 @@ class FlyLogger:
                 logger.info(f"Working directory is changed to {os.getcwd()}")
         elif self.rank != 0 and self.logging:
             # for other ranks, we initialize a debug level logger
-            logging.basicConfig(format=f'[%(asctime)s][%(name)s][%(levelname)s][RANK {self.rank}] - %(message)s',
-                                level=logging.DEBUG)
+            logging.basicConfig(
+                format=f'[%(asctime)s][%(name)s][%(levelname)s][RANK {self.rank}] - %(message)s', level=logging.WARNING
+            )
 
         if self.logdir:
             logger.info(f"Logging directory is changed to {self.logdir}")
@@ -184,4 +198,3 @@ class FlyLogger:
             handler.flush()
             logger.removeHandler(handler)
         time.sleep(0.1)
-        
