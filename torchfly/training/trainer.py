@@ -5,6 +5,7 @@ import torch
 from torch.cuda.amp import GradScaler, autocast
 from omegaconf import DictConfig, OmegaConf
 import socket
+from torchfly import distributed
 
 # import apex
 # from apex import amp
@@ -92,6 +93,8 @@ class Trainer:
             logger.info(
                 f"Initialized Rank:{torch.distributed.get_rank()} Locak-rank: {self.local_rank} on Node:{self.node_rank} Node-name:{socket.gethostname()}"
             )
+        
+        torch.cuda.set_device(distributed.get_rank())
 
     def init_device(self, config):
         # set cuda device
