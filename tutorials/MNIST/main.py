@@ -33,8 +33,14 @@ class DataLoaderHelper:
                                          [transforms.ToTensor(),
                                           transforms.Normalize((0.1307,), (0.3081,))]))
 
-        dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, **kwargs)
 
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+                dataset,
+                num_replicas=distributed.get_world_size(),
+                rank=distributed.get_rank()
+            )
+
+        dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, **kwargs)
         return dataloader
 
     def valid_loader_fn(self):

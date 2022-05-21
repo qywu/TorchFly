@@ -188,6 +188,7 @@ class Trainer:
         """
         Default distributed training uses reducer for simplicity. 
         """
+        logger.info("Reducer is intialized!")
         # Distributed training (should be after apex fp16 initialization)
         self.reducer = Reducer(model)
         # for param in self.model.parameters():

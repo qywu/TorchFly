@@ -198,6 +198,9 @@ class Evaluation(Callback):
         if trainer.validation_dataloader is not None and self.enabled:
             trainer.validate(trainer.validation_dataloader)
 
+        if trainer.test_dataloader is not None and self.enabled:
+            trainer.test(trainer.test_dataloader)
+
     def get_model_weights_stamp(self, trainer: Trainer, score: float):
         item = {
             "model_weights": trainer.model.state_dict(),

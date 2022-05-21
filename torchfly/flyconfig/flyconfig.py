@@ -184,6 +184,10 @@ class FlyConfig:
             config.flylogger.runtime.owd = os.getcwd()
             config.flylogger.runtime.config_path = config_path
 
+        # set it under runtime
+        config.runtime.owd = os.getcwd()
+        config.runtime.config_path = config_path
+
         return config
 
     @staticmethod
