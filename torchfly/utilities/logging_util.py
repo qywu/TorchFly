@@ -1,10 +1,40 @@
 import os
 import sys
+import json
 import logging
 import colorlog
 from omegaconf import DictConfig
 
 logger = logging.getLogger(__name__)
+
+
+def init_basic_logging():
+    """
+    Configure the basic color logging function
+    """
+    rank = int(os.environ.get("RANK", 0))
+    if rank != 0:
+        rank_record = f"[RANK {rank}]"
+    else:
+        rank_record = ""
+
+    logging_config = {'version': 1,
+                        'formatters': {'simple': {'format': '[%(asctime)s][%(levelname)s] - %(message)s'},
+                        'colorlog': {'()': 'colorlog.ColoredFormatter',
+                        'format': f'[%(cyan)s%(asctime)s%(reset)s][%(log_color)s%(levelname)s%(reset)s]{rank_record} - %(message)s',
+                        'datefmt': '%Y-%m-%d %H:%M:%S',
+                        'log_colors': {'DEBUG': 'purple',
+                            'INFO': 'green',
+                            'WARNING': 'yellow',
+                            'ERROR': 'red',
+                            'CRITICAL': 'red'}}},
+                        'handlers': {'console': {'class': 'logging.StreamHandler',
+                        'formatter': 'colorlog',
+                        'stream': 'ext://sys.stdout'}},
+                        'root': {'level': 'INFO', 'handlers': ['console']},
+                        'disable_existing_loggers': False
+                        }
+    logging.config.dictConfig(logging_config)
 
 
 def configure_logging(config: DictConfig = None) -> None:
