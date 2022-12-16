@@ -2,6 +2,8 @@ import os
 import sys
 import json
 import logging
+import logging.config
+
 import colorlog
 from omegaconf import DictConfig
 

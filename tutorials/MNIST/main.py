@@ -24,24 +24,6 @@ class DataLoaderHelper:
             "pin_memory": True,
         }
         with distributed.mutex() as rank:
-<<<<<<< HEAD
-
-            dataset = datasets.MNIST(os.path.join(self.config.task.datadir, 'MNIST'),
-                                     train=True,
-                                     download=True,
-                                     transform=transforms.Compose(
-                                         [transforms.ToTensor(),
-                                          transforms.Normalize((0.1307,), (0.3081,))]))
-
-
-        train_sampler = torch.utils.data.distributed.DistributedSampler(
-                dataset,
-                num_replicas=distributed.get_world_size(),
-                rank=distributed.get_rank()
-            )
-
-        dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, **kwargs)
-=======
             dataset = datasets.MNIST(
                 os.path.join(self.config.task.datadir, "MNIST"),
                 train=True,
@@ -66,7 +48,6 @@ class DataLoaderHelper:
             sampler=train_sampler,
             **kwargs
         )
->>>>>>> 636da9083aee5a710364369ba369705325db670b
         return dataloader
 
     def valid_loader_fn(self):
