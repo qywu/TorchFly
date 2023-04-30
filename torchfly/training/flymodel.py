@@ -35,7 +35,7 @@ class FlyModel(nn.Module):
         """
         self.trainer = trainer
 
-    def predict_step(self, batch_idx, dataloder_idx=0, *args, **kwargs):
+    def predict_step(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
     def get_metrics(self, reset):
@@ -148,7 +148,7 @@ class FlyModel(nn.Module):
             for batch_idx, batch in enumerate(pbar):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
-                self.validation_step(batch, batch_idx)
+                self.validation_step(batch, batch_idx=batch_idx)
 
     def test_loop(self, dataloader):
         self.eval()
@@ -160,7 +160,7 @@ class FlyModel(nn.Module):
             for batch_idx, batch in enumerate(pbar):
                 # send to cuda device
                 batch = move_to_device(batch, self.device)
-                self.test_step(batch, batch_idx)
+                self.test_step(batch, batch_idx=batch_idx)
 
     def get_last_lr(self):
         raise NotImplementedError(

@@ -105,3 +105,7 @@ class CategoricalAccuracy(Metric):
     def reset(self):
         self.correct_count = 0.0
         self.total_count = 0.0
+
+    def __repr__(self):
+        acc = self.get_metric()
+        return f"Top-{self._top_k} accuracy: {acc:.4f}"
